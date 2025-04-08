@@ -1,0 +1,14 @@
+/dev/mapper/luks-a4e69b37-768b-455f-8160-8f54b45f6e47 /home btrfs rw,seclabel,relatime,compress=zstd:1,ssd,space_cache=v2,subvolid=256,subvol=/home 0 0
+tmpfs /tmp tmpfs rw,seclabel,nosuid,nodev,size=16279796k,nr_inodes=1048576,inode64 0 0
+/dev/nvme0n1p2 /boot ext4 ro,seclabel,relatime 0 0
+/dev/loop0 /var/lib/snapd/snap/bare/5 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop2 /var/lib/snapd/snap/core20/2496 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop1 /var/lib/snapd/snap/core20/2434 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop6 /var/lib/snapd/snap/cups/1079 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop7 /var/lib/snapd/snap/freecad/1202 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop8 /var/lib/snapd/snap/freecad/1248 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop9 /var/lib/snapd/snap/gtk-common-themes/1535 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop10 /var/lib/snapd/snap/kde-frameworks-5-99-qt-5-15-7-core20/7 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop11 /var/lib/snapd/snap/kf5-5-108-qt-5-15-10-core22/5 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/loop12 /var/lib/snapd/snap/snapd/21759 squashfs ro,context=system_u:object_r:snappy_snap_t:s0,nodev,relatime,errors=continue 0 0
+/dev/nvme0n1p1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=winnt,errors=remount-ro 0 0

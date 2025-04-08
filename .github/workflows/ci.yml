@@ -86,9 +86,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-      - name: Run tests
+      - name: Run tests with mock mounts
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -- --test-threads=1
-      
+          args: --features test-remount -- --test-threads=1
+      - name: Run mount logic tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          # matches 2 remount tests
+          args: test_remount_boot   

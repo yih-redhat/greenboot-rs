@@ -52,8 +52,6 @@ jobs:
 - job: copr_build
   trigger: pull_request
   targets:
-  - centos-stream-9-aarch64
-  - centos-stream-9-x86_64
   - fedora-development-aarch64
   - fedora-development
 - job: copr_build
@@ -62,7 +60,5 @@ jobs:
   owner: "runcom" # copr repo namespace
   project: greenboot  # copr repo name so you can consume the builds
   targets:
-  - centos-stream-9-aarch64
-  - centos-stream-9-x86_64
   - fedora-development-aarch64
   - fedora-development

@@ -42,14 +42,14 @@
     - name: a list of greenboot* service should be enabled
       block:
         - name: a list of greenboot* service should be enabled
-          command: systemctl is-enabled greenboot-healthcheck
+          command: systemctl is-enabled greenboot-healthcheck greenboot-rollback.service
           register: result_greenboot_service
 
         - assert:
             that:
-              - result_greenboot_service.stdout == 'enabled'
-            fail_msg: "greenboot service is not enabled"
-            success_msg: "greenboot service is enabled"
+              - result_greenboot_service.stdout == 'enabled\nenabled'
+            fail_msg: "at least one greenboot service is not enabled"
+            success_msg: "greenboot services are enabled"
       always:
         - set_fact:
             total_counter: "{{ total_counter | int + 1 }}"

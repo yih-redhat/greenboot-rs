@@ -74,7 +74,7 @@ wait_for_ssh_up () {
 ##
 ###########################################################
 greenprint "Installing required packages"
-sudo dnf install -y podman qemu-img firewalld qemu-kvm libvirt-client libvirt-daemon-kvm libvirt-daemon virt-install rpmdevtools ansible-core lorax
+sudo dnf install -y podman qemu-img firewalld qemu-kvm libvirt-client libvirt-daemon-kvm libvirt-daemon virt-install rpmdevtools ansible-core cargo rpmbuild rust-packaging lorax
 ansible-galaxy collection install community.general
 
 # Start firewalld
@@ -158,7 +158,7 @@ FROM ${BASE_IMAGE_URL}
 COPY greenboot-*.rpm /tmp/
 RUN dnf install -y \
     /tmp/greenboot-*.rpm && \
-    systemctl enable greenboot-healthcheck.service
+    systemctl enable greenboot-healthcheck.service greenboot-rollback.service
 # Clean up by removing the local RPMs if desired
 RUN rm -f /tmp/greenboot-*.rpm
 EOF

@@ -215,16 +215,14 @@ EOF
 
 %install
 %cargo_install
-# `greenboot` should not be executed directly by users, so we move the binary
 mkdir -p %{buildroot}%{_libexecdir}
 mkdir -p %{buildroot}%{_libexecdir}/%{name}
 mv %{buildroot}%{_bindir}/greenboot %{buildroot}%{_libexecdir}/%{name}/%{name}
-install -Dpm0644 -t %{buildroot}%{_unitdir} \
-  usr/lib/systemd/system/*.service
-# add config
+install -Dpm0644 -t %{buildroot}%{_unitdir} usr/lib/systemd/system/*.service
 mkdir -p %{buildroot}%{_exec_prefix}/lib/motd.d/
 mkdir -p %{buildroot}%{_libexecdir}/%{name}
 install -Dpm0644 -t %{buildroot}%{_sysconfdir}/%{name} etc/greenboot/greenboot.conf
+install -D -t %{buildroot}%{_prefix}/lib/bootupd/grub2-static/configs.d grub2/08_greenboot.cfg
 mkdir -p %{buildroot}%{_sysconfdir}/%{name}/check/required.d
 mkdir    %{buildroot}%{_sysconfdir}/%{name}/check/wanted.d
 mkdir    %{buildroot}%{_sysconfdir}/%{name}/green.d
@@ -258,6 +256,7 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 %{_unitdir}/greenboot-healthcheck.service
 %{_unitdir}/greenboot-rollback.service
 %{_sysconfdir}/%{name}/greenboot.conf
+%{_prefix}/lib/bootupd/grub2-static/configs.d/08_greenboot.cfg
 %dir %{_prefix}/lib/%{name}
 %dir %{_prefix}/lib/%{name}/check
 %dir %{_prefix}/lib/%{name}/check/required.d
@@ -277,77 +276,5 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 %{_prefix}/lib/%{name}/check/required.d/02_watchdog.sh
 
 %changelog
-* Thu Sep 08 2022 Peter Robinson <pbrobinson@fedoraproject.org> - 0.15.2-1
-- The 0.15.2 release
-
-* Tue Aug 09 2022 Peter Robinson <pbrobinson@fedoraproject.org> - 0.15.1-1
-- Add conf during installation
-
-* Thu Jul 21 2022 Sayan Paul <saypaul@fedoraproject.org> - 0.15.0-1
-- The 0.15.0 release
-- Add service-monitor
-
-* Thu Nov 18 2021 Peter Robinson <pbrobinson@fedoraproject.org> - 0.14.0-1
-- The 0.14.0 release
-- Add watchdog-triggered boot check
-- Ensure all required health checks are run
-
-* Wed Nov 10 2021 Peter Robinson <pbrobinson@fedoraproject.org> - 0.13.1-1
-- Update to 0.13.1
-
-* Mon Jul 26 2021 Jose Noguera <jnoguera@redhat.com> - 0.12.0-1
-- Update to 0.12.0
-- Add ability to configure maximum number of boot attempts via env var and config file.
-- Add How does it work section to README.
-- Add CI via GitHub Actions and unit testing with BATS.
-- Add update platforms DNS resolution and connection checker as health checks out of the box
-
-* Sat Jan 16 2021 Peter Robinson <pbrobinson@fedoraproject.org> - 0.11.0-2
-- Make arch specific due to grub availability on s390x
-- Resolves: rhbz#1915241
-
-* Thu Aug 13 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.11.0-1
-- Update to 0.11.0
-
-* Thu Jun 11 2020 Peter Robinson <pbrobinson@fedoraproject.org> - 0.10.3-2
-- Update changelog
-
-* Fri Jun 05 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.10.3-1
-- Update to 0.10.3
-
-* Wed Jun 03 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.10.2-1
-- Update to 0.10.2
-
-* Wed May 27 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.10-1
-- Update to 0.10
-
-* Mon May 04 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.9-2
-- Added missing requires to grub2 and rpm-ostree-grub2 packages
-- Run %%setup quietly
-
-* Fri Apr 03 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.9-1
-- Update to v0.9
-- Update repo_owner
-
-* Wed Feb 05 2020 Christian Glombek <lorbus@fedoraproject.org> - 0.8-1
-- Update to v0.8
-- Add guard against bootlooping in redboot-auto-reboot.service
-
-* Mon Apr 01 2019 Christian Glombek <lorbus@fedoraproject.org> - 0.7-1
-- Update to v0.7
-- Rename ostree-grub2 subpackage to  rpm-ostree-grub2 to be more explicit
-- Add auto-update-fallback meta subpackage
-
-* Wed Feb 13 2019 Christian Glombek <lorbus@fedoraproject.org> - 0.6-1
-- Update to v0.6
-- Integrate with systemd's boot-complete.target
-- Rewrite motd sub-package and rename to status
-
-* Fri Oct 19 2018 Christian Glombek <lorbus@fedoraproject.org> - 0.5-1
-- Update to v0.5
-
-* Tue Oct 02 2018 Christian Glombek <lorbus@fedoraproject.org> - 0.4-2
-- Spec Review
-
-* Thu Jun 14 2018 Christian Glombek <lorbus@fedoraproject.org> - 0.4-1
+* Fri Apr 25 2025 Sayan Paul <paul.sayan@gmail.com> - 0.16-1
 - Initial Package

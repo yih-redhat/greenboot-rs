@@ -38,7 +38,7 @@ jobs:
       ref: ${{ fromJson(steps.pr-api.outputs.data).head.ref }}
       repo_url: ${{ fromJson(steps.pr-api.outputs.data).head.repo.html_url }}
 
- Centos-10-bootc:
+  Centos-10-bootc:
     needs: check-pull-request
     if: ${{ needs.check-pull-request.outputs.allowed_user == 'true' }}
     continue-on-error: true

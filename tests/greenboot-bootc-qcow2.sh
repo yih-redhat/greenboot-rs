@@ -34,7 +34,7 @@ EDGE_USER_PASSWORD=foobar
 case "${ID}-${VERSION_ID}" in
     "fedora-43")
         OS_VARIANT="fedora-unknown"
-        BASE_IMAGE_URL="quay.io/fedora/fedora-bootc:43"
+        BASE_IMAGE_URL="quay.io/centos-bootc/centos-bootc:stream10"
         BIB_URL="quay.io/centos-bootc/bootc-image-builder:latest"
         BOOT_ARGS="uefi"
         ;;

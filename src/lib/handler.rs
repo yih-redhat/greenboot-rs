@@ -17,12 +17,12 @@ pub fn handle_reboot(force: bool) -> Result<()> {
     Ok(())
 }
 
-/// rollback to previous ostree deployment if boot counter is less than 0
+/// rollback to previous deployment if boot counter is less than 0
 pub fn handle_rollback() -> Result<()> {
     let boot_counter = get_boot_counter("/boot/grub2/grubenv")?;
     if boot_counter <= Some(0) {
-        log::info!("Greenboot will now attempt to rollback");
-        Command::new("rpm-ostree").arg("rollback").status()?;
+        log::info!("Greenboot will now attempt to rollback to previous deployment");
+        Command::new("bootc").arg("rollback").status()?;
         return Ok(());
     }
     bail!("Rollback not initiated");

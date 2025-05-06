@@ -34,9 +34,17 @@ EDGE_USER_PASSWORD=foobar
 case "${ID}-${VERSION_ID}" in
     "fedora-43")
         OS_VARIANT="fedora-unknown"
-        BASE_IMAGE_URL="quay.io/centos-bootc/centos-bootc:stream10"
+        BASE_IMAGE_URL="quay.io/fedora/fedora-bootc:43"
         BIB_URL="quay.io/centos-bootc/bootc-image-builder:latest"
         BOOT_ARGS="uefi"
+        sudo dnf install -y rpmbuild rust-packaging
+        ;;
+    "centos-10")
+        OS_VARIANT="centos-stream9"
+        BASE_IMAGE_URL="quay.io/centos-bootc/centos-bootc:stream10"
+        BIB_URL="quay.io/centos-bootc/bootc-image-builder:latest"
+        BOOT_ARGS="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
+        sudo dnf install -y make rpm-build rust-toolset
         ;;
     *)
         echo "unsupported distro: ${ID}-${VERSION_ID}"
@@ -74,7 +82,7 @@ wait_for_ssh_up () {
 ##
 ###########################################################
 greenprint "Installing required packages"
-sudo dnf install -y podman qemu-img firewalld qemu-kvm libvirt-client libvirt-daemon-kvm libvirt-daemon virt-install rpmdevtools ansible-core cargo rpmbuild rust-packaging lorax
+sudo dnf install -y podman qemu-img firewalld qemu-kvm libvirt-client libvirt-daemon-kvm libvirt-daemon virt-install rpmdevtools ansible-core cargo lorax
 ansible-galaxy collection install community.general
 
 # Start firewalld

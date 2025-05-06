@@ -72,6 +72,7 @@ fn unset_grub_var(key: &str, grub_path: &str, mount_info_path: &str) -> Result<(
         .arg(key)
         .status()
         .context("Unable to clear boot_counter")?;
+    log::info!("Clear grubenv: {key}");
     remount_boot_ro(Path::new(mount_info_path)).context("Failed to remount /boot as read-only")
 }
 
@@ -82,7 +83,8 @@ fn set_grub_var(key: &str, val: u16, grub_path: &str, mount_info_path: &str) -> 
         .arg("set")
         .arg(format!("{key}={val}"))
         .status()
-        .context("Unable to clear boot_counter")?;
+        .context("Unable to set grubenv")?;
+    log::info!("Set grubenv: {key}={val}");
     remount_boot_ro(Path::new(mount_info_path)).context("Failed to remount /boot as read-only")
 }
 

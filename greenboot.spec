@@ -27,7 +27,7 @@ Source1:        %{name}-%{version}-vendor.tar.gz
 
 ExcludeArch:    s390x i686 %{power64}
 
-%if 0%{?rhel} && !0%{?eln}
+%if 0%{?centos} && !0%{?eln}
 BuildRequires:  rust-toolset
 %else
 BuildRequires:  rust-packaging
@@ -182,11 +182,7 @@ cat >.cargo/config << EOF
 [build]
 rustc = "%{__rustc}"
 rustdoc = "%{__rustdoc}"
-%if 0%{?rhel} && !0%{?eln}
-rustflags = %{__global_rustflags_toml}
-%else
 rustflags = "%{__global_rustflags_toml}"
-%endif
 
 [profile.rpm]
 inherits = "release"

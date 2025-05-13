@@ -58,8 +58,8 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-    # case: check greenboot fall back log
-    - name: fallback log should be found here
+    # case: check boot-complete.target status
+    - name: boot-complete.target should be active
       block:
         - name: check boot-complete.target
           command: systemctl --no-pager status boot-complete.target
@@ -69,6 +69,17 @@
           delay: 60
           until: "'inactive' not in result.stdout"
 
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check fallback log
+    - name: fallback log should be found here
+      block:
         - name: fallback log should be found here
           command: journalctl -b -0 -u greenboot -u greenboot-healthcheck
           become: yes
@@ -92,7 +103,7 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-    # case: check boot_success
+    # case: check grubenv variable
     - name: grubenv variables should contain boot_success=1
       block:
         - name: grubenv variables should contain boot_success=1

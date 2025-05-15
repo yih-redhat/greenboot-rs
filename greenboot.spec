@@ -215,6 +215,7 @@ mkdir -p %{buildroot}%{_libexecdir}
 mkdir -p %{buildroot}%{_libexecdir}/%{name}
 mv %{buildroot}%{_bindir}/greenboot %{buildroot}%{_libexecdir}/%{name}/%{name}
 install -Dpm0644 -t %{buildroot}%{_unitdir} usr/lib/systemd/system/*.service
+install -Dpm0644 -t %{buildroot}%{_unitdir} usr/lib/systemd/system/*.target
 mkdir -p %{buildroot}%{_exec_prefix}/lib/motd.d/
 mkdir -p %{buildroot}%{_libexecdir}/%{name}
 install -Dpm0644 -t %{buildroot}%{_sysconfdir}/%{name} etc/greenboot/greenboot.conf
@@ -235,14 +236,17 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 %post
 %systemd_post greenboot-healthcheck.service
 %systemd_post greenboot-rollback.service
+%systemd_post greenboot-success.target
 
 %preun
 %systemd_preun greenboot-healthcheck.service
 %systemd_preun greenboot-rollback.service
+%systemd_postun greenboot-success.target
 
 %postun
 %systemd_postun greenboot-healthcheck.service
 %systemd_postun greenboot-rollback.service
+%systemd_postun greenboot-success.target
 
 %files
 %doc README.md
@@ -251,6 +255,7 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 %{_libexecdir}/%{name}/%{name}
 %{_unitdir}/greenboot-healthcheck.service
 %{_unitdir}/greenboot-rollback.service
+%{_unitdir}/greenboot-success.target
 %{_sysconfdir}/%{name}/greenboot.conf
 %{_prefix}/lib/bootupd/grub2-static/configs.d/08_greenboot.cfg
 %dir %{_prefix}/lib/%{name}

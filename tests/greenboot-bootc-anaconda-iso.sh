@@ -166,7 +166,7 @@ FROM ${BASE_IMAGE_URL}
 COPY greenboot-*.rpm /tmp/
 RUN dnf install -y \
     /tmp/greenboot-*.rpm && \
-    systemctl enable greenboot-healthcheck.service greenboot-rollback.service
+    systemctl enable greenboot-healthcheck.service greenboot-rollback.service greenboot-success.target
 # Clean up by removing the local RPMs if desired
 RUN rm -f /tmp/greenboot-*.rpm
 EOF

@@ -27,47 +27,38 @@ struct Cli {
 /// config params for greenboot
 struct GreenbootConfig {
     max_reboot: u16,
+    disabled_healthchecks: Vec<String>,
 }
 
 impl GreenbootConfig {
-    /// sets the default parameter for greenboot config
-    fn set_default() -> Self {
-        Self { max_reboot: 3 }
-    }
-    /// gets the config from the config file
-    fn get_config() -> Self {
-        let mut config = Self::set_default();
-        let parsed = Config::builder()
+    pub fn get_config() -> Self {
+        let mut config = Self {
+            max_reboot: 3,                 // Default value
+            disabled_healthchecks: vec![], //empty list
+        };
+
+        // Try to load from config file
+        if let Ok(parsed) = Config::builder()
             .add_source(File::new(GREENBOOT_CONFIG_FILE, FileFormat::Ini))
-            .build();
-        match parsed {
-            Ok(c) => {
-                config.max_reboot = match c.get_int("GREENBOOT_MAX_BOOT_ATTEMPTS") {
-                    Ok(c) => c.try_into().unwrap_or_else(|e| {
-                        log::warn!(
-                            "{e}, config error, using default value: {}",
-                            config.max_reboot
-                        );
-                        config.max_reboot
-                    }),
-                    Err(e) => {
-                        log::warn!(
-                            "{e}, config error, using default value: {}",
-                            config.max_reboot
-                        );
-                        config.max_reboot
-                    }
-                }
+            .build()
+        {
+            // Load max reboot attempts
+            if let Ok(max) = parsed.get_int("GREENBOOT_MAX_BOOT_ATTEMPTS") {
+                config.max_reboot = max as u16;
             }
-            Err(e) => log::warn!(
-                "{e}, config error, using default value: {}",
-                config.max_reboot
-            ),
+
+            // Load disabled healthchecks
+            if let Ok(disabled) = parsed.get_array("DISABLED_HEALTHCHECKS") {
+                config.disabled_healthchecks = disabled
+                    .into_iter()
+                    .filter_map(|v| v.into_string().ok())
+                    .collect();
+            }
         }
+
         config
     }
 }
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 /// log level for journald logging
 enum LogLevel {
@@ -183,7 +174,7 @@ fn health_check() -> Result<()> {
         previous_rollback,
     )?)?;
 
-    match run_diagnostics() {
+    match run_diagnostics(config.disabled_healthchecks) {
         Ok(()) => {
             log::info!("greenboot health-check passed.");
             let errors = run_green();

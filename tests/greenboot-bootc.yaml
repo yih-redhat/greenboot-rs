@@ -119,6 +119,27 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
+    # case: check boot times
+    - name: check boot times
+      block:
+        - name: check boot times
+          shell: journalctl --list-boots | wc -l
+          register: boot_time_log
+
+        - assert:
+            that:
+              - boot_time_log.stdout == '9'
+            fail_msg: "boot times is not correct, please check configuration in /etc/greenboot/greenboot.conf"
+            success_msg: "boot times is correct"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
     # case: check grubenv variable
     - name: grubenv variables should contain boot_success=1
       block:

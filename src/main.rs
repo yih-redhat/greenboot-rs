@@ -175,7 +175,7 @@ fn health_check() -> Result<()> {
     )?)?;
 
     match run_diagnostics(config.disabled_healthchecks) {
-        Ok(()) => {
+        Ok(_) => {
             log::info!("greenboot health-check passed.");
             let errors = run_green();
             if !errors.is_empty() {

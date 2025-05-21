@@ -9,8 +9,7 @@ use std::process::Command;
 static GREENBOOT_INSTALL_PATHS: [&str; 2] = ["/usr/lib/greenboot", "/etc/greenboot"];
 
 /// runs all the scripts in required.d and wanted.d
-/// runs all the scripts in required.d and wanted.d
-pub fn run_diagnostics(skipped: Vec<String>) -> Result<()> {
+pub fn run_diagnostics(skipped: Vec<String>) -> Result<Vec<String>> {
     let mut required_script_failure = false;
     let mut path_exists = false;
     let mut all_skipped = HashSet::new();
@@ -53,7 +52,10 @@ pub fn run_diagnostics(skipped: Vec<String>) -> Result<()> {
     }
 
     // Check for disabled scripts that weren't found
-    let missing_disabled: Vec<_> = disabled_scripts.difference(&all_skipped).collect();
+    let missing_disabled: Vec<String> = disabled_scripts
+        .difference(&all_skipped)
+        .map(|s| s.to_string()) // Convert &String to String
+        .collect();
 
     if !missing_disabled.is_empty() {
         log::warn!(
@@ -65,7 +67,7 @@ pub fn run_diagnostics(skipped: Vec<String>) -> Result<()> {
     if required_script_failure {
         bail!("health-check failed!");
     }
-    Ok(())
+    Ok(missing_disabled)
 }
 
 // runs all the scripts in red.d when health-check fails
@@ -96,7 +98,7 @@ pub fn run_green() -> Vec<Box<dyn Error>> {
 
 struct ScriptRunResult {
     errors: Vec<Box<dyn Error>>,
-    skipped: Vec<String>, // Only used by diagnostics
+    skipped: Vec<String>,
 }
 
 fn run_scripts(name: &str, path: &str, disabled_scripts: Option<&[String]>) -> ScriptRunResult {
@@ -163,7 +165,6 @@ fn run_scripts(name: &str, path: &str, disabled_scripts: Option<&[String]>) -> S
 
 #[cfg(test)]
 mod test {
-
     use super::*;
     use anyhow::{Context, Result};
     use std::fs;
@@ -199,6 +200,39 @@ mod test {
         tear_down().context("Test teardown failed").unwrap();
     }
 
+    #[test]
+    fn test_skip_nonexistent_script() {
+        let nonexistent_script_name = "nonexistent_script.sh".to_string();
+        setup_folder_structure(true)
+            .context("Test setup failed")
+            .unwrap();
+
+        // Try to skip a script that doesn't exist
+        let state = run_diagnostics(vec![nonexistent_script_name.clone()]);
+        assert!(
+            state.unwrap().contains(&nonexistent_script_name),
+            "non existent script names did not match"
+        );
+
+        tear_down().context("Test teardown failed").unwrap();
+    }
+
+    #[test]
+    fn test_skip_failing_script() {
+        setup_folder_structure(false)
+            .context("Test setup failed")
+            .unwrap();
+
+        // Skip the failing script in required.d
+        let state = run_diagnostics(vec!["failing_script.sh".to_string()]);
+        assert!(
+            state.is_ok(),
+            "Should pass when skipping failing required script"
+        );
+
+        tear_down().context("Test teardown failed").unwrap();
+    }
+
     fn setup_folder_structure(passing: bool) -> Result<()> {
         let required_path = format!("{}/check/required.d", GREENBOOT_INSTALL_PATHS[1]);
         let wanted_path = format!("{}/check/wanted.d", GREENBOOT_INSTALL_PATHS[1]);
@@ -207,31 +241,34 @@ mod test {
 
         fs::create_dir_all(&required_path).expect("cannot create folder");
         fs::create_dir_all(&wanted_path).expect("cannot create folder");
-        let _a = fs::copy(
+
+        // Create passing script in both required and wanted
+        fs::copy(
             passing_test_scripts,
             format!("{}/passing_script.sh", &required_path),
         )
-        .context("unable to copy test assets");
+        .context("unable to copy passing script to required.d")?;
 
-        let _a = fs::copy(
+        fs::copy(
             passing_test_scripts,
             format!("{}/passing_script.sh", &wanted_path),
         )
-        .context("unable to copy test assets");
+        .context("unable to copy passing script to wanted.d")?;
 
-        let _a = fs::copy(
+        // Create failing script in wanted.d
+        fs::copy(
             failing_test_scripts,
             format!("{}/failing_script.sh", &wanted_path),
         )
-        .context("unable to copy test assets");
+        .context("unable to copy failing script to wanted.d")?;
 
         if !passing {
-            let _a = fs::copy(
+            // Create failing script in required.d for failure cases
+            fs::copy(
                 failing_test_scripts,
                 format!("{}/failing_script.sh", &required_path),
             )
-            .context("unable to copy test assets");
-            return Ok(());
+            .context("unable to copy failing script to required.d")?;
         }
         Ok(())
     }

@@ -38,22 +38,29 @@ impl GreenbootConfig {
         };
 
         // Try to load from config file
-        if let Ok(parsed) = Config::builder()
+        if let Ok(parsed_config) = Config::builder()
             .add_source(File::new(GREENBOOT_CONFIG_FILE, FileFormat::Ini))
             .build()
         {
-            // Load max reboot attempts
-            if let Ok(max) = parsed.get_int("GREENBOOT_MAX_BOOT_ATTEMPTS") {
-                config.max_reboot = max as u16;
-            }
+            config.max_reboot = match parsed_config.get_int("GREENBOOT_MAX_BOOT_ATTEMPTS") {
+                Ok(max) => max as u16,
+                Err(_) => {
+                    log::debug!(
+                        "GREENBOOT_MAX_BOOT_ATTEMPTS not found in config using default value : 3"
+                    );
+                    3_u16
+                }
+            };
 
-            // Load disabled healthchecks
-            if let Ok(disabled) = parsed.get_array("DISABLED_HEALTHCHECKS") {
-                config.disabled_healthchecks = disabled
-                    .into_iter()
-                    .filter_map(|v| v.into_string().ok())
-                    .collect();
-            }
+            config.disabled_healthchecks = match parsed_config.get_string("DISABLED_HEALTHCHECKS") {
+                Ok(raw_disabled_str) => parse_bash_array_string(&raw_disabled_str),
+                Err(_) => {
+                    log::debug!(
+                        "DISABLED_HEALTHCHECKS key not found in config, using default empty list."
+                    );
+                    vec![]
+                }
+            };
         }
 
         config
@@ -226,6 +233,40 @@ fn trigger_rollback() -> Result<()> {
         Err(e) => {
             bail!("{e}, Rollback is not initiated");
         }
+    }
+}
+
+// This function parses a string expected in bash-array format like
+// `( "item1" "item2" ... )` into a Vec<String>.
+fn parse_bash_array_string(raw_str: &str) -> Vec<String> {
+    log::debug!("Attempting to parse raw bash-array string: '{}'", raw_str);
+
+    if raw_str.starts_with('(') && raw_str.ends_with(')') {
+        // Remove the outer parentheses
+        let content = raw_str.trim_start_matches('(').trim_end_matches(')');
+
+        // Split by whitespace, trim quotes from each part, and filter out empty strings
+        let parsed_list: Vec<String> = content
+            .split_whitespace()
+            .map(|s| s.trim_matches('"').to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        log::debug!("Parsed list from bash-array string: {:?}", parsed_list);
+        parsed_list
+    } else if !raw_str.trim().is_empty() {
+        // If the string is not empty but doesn't match the expected format,
+        // log a warning and return an empty list.
+        log::warn!(
+            "String ('{}') is not in the expected bash-array format '( \"item1\" ... )'. Treating as empty list.",
+            raw_str
+        );
+        vec![]
+    } else {
+        // If the string is empty (e.g., "DISABLED_HEALTHCHECKS=" or "DISABLED_HEALTHCHECKS=()"),
+        // it correctly results in an empty list.
+        log::debug!("Bash-array string is empty or effectively empty, resulting in an empty list.");
+        vec![]
     }
 }
 

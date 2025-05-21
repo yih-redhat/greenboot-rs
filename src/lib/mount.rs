@@ -117,7 +117,6 @@ pub fn remount_boot_ro(_mounts_path: &Path) -> Result<(), MountError> {
 }
 
 #[cfg(test)]
-#[warn(unused_imports)]
 mod test {
     use super::*;
 

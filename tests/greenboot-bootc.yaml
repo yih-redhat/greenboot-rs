@@ -142,6 +142,28 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
+    # case: fail early for any required script failure
+    - name: check greenboot fail early for any required script failure
+      block:
+        - name: fail early log should be found here
+          shell: journalctl -u greenboot-healthcheck.service
+          become: yes
+          register: result_early
+
+        - assert:
+            that:
+              - "'Greenboot error: required health-check failed, skipping remaining scripts' in result_early.stdout"
+            fail_msg: "Fail early health checks log not found"
+            success_msg: "Found fail early checks log"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
     # case: check boot times
     - name: check boot times
       block:

@@ -263,7 +263,7 @@ mod test {
             .context("Test setup failed")
             .unwrap();
 
-        // Try to skip a script that doesn't exist
+        // Try to run a script that doesn't exist
         let state = run_diagnostics(vec![nonexistent_script_name.clone()]);
         assert!(
             state.unwrap().contains(&nonexistent_script_name),
@@ -274,16 +274,20 @@ mod test {
     }
 
     #[test]
-    fn test_skip_failing_script() {
+    fn test_skip_disabled_script() {
         setup_folder_structure(false)
             .context("Test setup failed")
             .unwrap();
 
-        // Skip the failing script in required.d
-        let state = run_diagnostics(vec!["failing_script.sh".to_string()]);
+        // Skip the disabled script in required.d ,since there are two
+        // failing- scripts passing them both so that this test passes.
+        let state = run_diagnostics(vec![
+            "01_failing_script.sh".to_string(),
+            "02_failing_script.sh".to_string(),
+        ]);
         assert!(
             state.is_ok(),
-            "Should pass when skipping failing required script"
+            "Should pass when skipping disabled required script"
         );
 
         tear_down().context("Test teardown failed").unwrap();

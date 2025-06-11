@@ -8,9 +8,9 @@ use std::process::Command;
 /// dir that greenboot looks for the health check and other scripts
 static GREENBOOT_INSTALL_PATHS: [&str; 2] = ["/usr/lib/greenboot", "/etc/greenboot"];
 
-/// runs all the scripts in required.d and wanted.d
+/// run required.d and wanted.d scripts.
+/// If a required script fails, log the error, and skip remaining checks.
 pub fn run_diagnostics(skipped: Vec<String>) -> Result<Vec<String>> {
-    let mut required_script_failure = false;
     let mut path_exists = false;
     let mut all_skipped = HashSet::new();
 
@@ -31,7 +31,7 @@ pub fn run_diagnostics(skipped: Vec<String>) -> Result<Vec<String>> {
         if !result.errors.is_empty() {
             log::error!("required script error:");
             result.errors.iter().for_each(|e| log::error!("{e}"));
-            required_script_failure = true;
+            bail!("required health-check failed, skipping remaining scripts");
         }
     }
 
@@ -64,9 +64,6 @@ pub fn run_diagnostics(skipped: Vec<String>) -> Result<Vec<String>> {
         );
     }
 
-    if required_script_failure {
-        bail!("health-check failed!");
-    }
     Ok(missing_disabled)
 }
 
@@ -149,13 +146,18 @@ fn run_scripts(name: &str, path: &str, disabled_scripts: Option<&[String]>) -> S
                     String::from_utf8_lossy(&o.stdout),
                     String::from_utf8_lossy(&o.stderr)
                 );
-                result.errors.push(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_msg,
-                )));
+                result
+                    .errors
+                    .push(Box::new(std::io::Error::other(error_msg)));
+                if name == "required" {
+                    break;
+                }
             }
             Err(e) => {
                 result.errors.push(Box::new(e));
+                if name == "required" {
+                    break;
+                }
             }
         }
     }
@@ -167,13 +169,28 @@ fn run_scripts(name: &str, path: &str, disabled_scripts: Option<&[String]>) -> S
 mod test {
     use super::*;
     use anyhow::{Context, Result};
-    use std::fs;
+    use std::fs::File;
+    use std::io::Write;
+    use std::sync::Once;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    static INIT: Once = Once::new();
+
+    fn init_logger() {
+        INIT.call_once(|| {
+            env_logger::builder().is_test(true).try_init().ok();
+        });
+    }
 
     static GREENBOOT_INSTALL_PATHS: [&str; 2] = ["/usr/lib/greenboot", "/etc/greenboot"];
 
     /// validate when the required folder is not found
     #[test]
-    fn missing_required_folder() {
+    fn test_missing_required_folder() {
+        let required_path = format!("{}/check/required.d", GREENBOOT_INSTALL_PATHS[1]);
+        if Path::new(&required_path).exists() {
+            fs::remove_dir_all(&required_path).unwrap();
+        }
         assert_eq!(
             run_diagnostics(vec![]).unwrap_err().to_string(),
             String::from("cannot find any required.d folder")
@@ -191,13 +208,52 @@ mod test {
     }
 
     #[test]
-    fn test_failed_diagnostics() {
+    fn test_required_script_failure_exit_early() {
+        init_logger();
         setup_folder_structure(false)
             .context("Test setup failed")
             .unwrap();
-        let failed_msg = run_diagnostics(vec![]).unwrap_err().to_string();
-        assert_eq!(failed_msg, String::from("health-check failed!"));
-        tear_down().context("Test teardown failed").unwrap();
+
+        let base_path = GREENBOOT_INSTALL_PATHS[1];
+
+        let counter_file = format!("{}/fail_counter.txt", base_path);
+        let mut file = File::create(&counter_file).expect("Failed to create counter file");
+        writeln!(file, "0").unwrap();
+
+        // Inject counter logic into the failing scripts
+        for name in ["01_failing_script", "02_failing_script"] {
+            let path = format!("{}/check/required.d/{}.sh", base_path, name);
+            let mut script = File::create(&path).unwrap();
+            writeln!(
+                script,
+                "#!/bin/bash\nCOUNTER_FILE=\"{}\"\ncount=$(cat $COUNTER_FILE)\necho $((count + 1)) >| $COUNTER_FILE\nexit 1",
+                counter_file
+            ).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let result = run_diagnostics(vec![]);
+        log::debug!("Diagnostics result: {:?}", result);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "required health-check failed, skipping remaining scripts"
+        );
+
+        log::info!("Health check failed as expected.");
+
+        let fail_script_count = fs::read_to_string(counter_file)
+            .unwrap()
+            .trim()
+            .parse::<u32>()
+            .unwrap();
+        assert_eq!(
+            fail_script_count, 1,
+            "Only one failing script should have executed"
+        );
+
+        tear_down().expect("teardown failed");
     }
 
     #[test]
@@ -207,7 +263,7 @@ mod test {
             .context("Test setup failed")
             .unwrap();
 
-        // Try to skip a script that doesn't exist
+        // Try to run a script that doesn't exist
         let state = run_diagnostics(vec![nonexistent_script_name.clone()]);
         assert!(
             state.unwrap().contains(&nonexistent_script_name),
@@ -218,16 +274,20 @@ mod test {
     }
 
     #[test]
-    fn test_skip_failing_script() {
+    fn test_skip_disabled_script() {
         setup_folder_structure(false)
             .context("Test setup failed")
             .unwrap();
 
-        // Skip the failing script in required.d
-        let state = run_diagnostics(vec!["failing_script.sh".to_string()]);
+        // Skip the disabled script in required.d ,since there are two
+        // failing- scripts passing them both so that this test passes.
+        let state = run_diagnostics(vec![
+            "01_failing_script.sh".to_string(),
+            "02_failing_script.sh".to_string(),
+        ]);
         assert!(
             state.is_ok(),
-            "Should pass when skipping failing required script"
+            "Should pass when skipping disabled required script"
         );
 
         tear_down().context("Test teardown failed").unwrap();
@@ -263,12 +323,17 @@ mod test {
         .context("unable to copy failing script to wanted.d")?;
 
         if !passing {
-            // Create failing script in required.d for failure cases
+            // Create multiple failing script in required.d for failure cases
             fs::copy(
                 failing_test_scripts,
-                format!("{}/failing_script.sh", &required_path),
+                format!("{}/01_failing_script.sh", &required_path),
             )
             .context("unable to copy failing script to required.d")?;
+            fs::copy(
+                failing_test_scripts,
+                format!("{}/02_failing_script.sh", &required_path),
+            )
+            .context("unable to copy another failing script to required.d")?;
         }
         Ok(())
     }

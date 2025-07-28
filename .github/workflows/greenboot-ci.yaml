@@ -23,8 +23,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "pull_request_target" ]; then
             echo "AUTHOR=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
+            echo "PR_NUM=${{ github.event.number }}" >> $GITHUB_ENV
           else
             echo "AUTHOR=${{ github.event.issue.user.login }}" >> $GITHUB_ENV
+            echo "PR_NUM=${{ github.event.issue.number }}" >> $GITHUB_ENV
           fi
 
       - name: Query author repository permissions
@@ -46,7 +48,7 @@ jobs:
         uses: octokit/request-action@v2.x
         id: pr-api
         with:
-          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.number }}
+          route: GET /repos/${{ github.repository }}/pulls/${{ env.PR_NUM }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

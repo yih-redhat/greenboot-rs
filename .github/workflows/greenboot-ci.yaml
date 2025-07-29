@@ -58,7 +58,7 @@ jobs:
       ref: ${{ fromJson(steps.pr-api.outputs.data).head.ref }}
       repo_url: ${{ fromJson(steps.pr-api.outputs.data).head.repo.html_url }}
 
-  Centos-10-bootc:
+  centos-10-bootc:
     needs: check-pull-request
     if: ${{ needs.check-pull-request.outputs.allowed_user == 'true' }}
     continue-on-error: true
@@ -72,15 +72,16 @@ jobs:
           api_key: ${{ secrets.TF_API_KEY }}
           git_url: ${{ needs.check-pull-request.outputs.repo_url }}
           git_ref: ${{ needs.check-pull-request.outputs.ref }}
+          update_pull_request_status: true
+          pull_request_status_name: centos-10-bootc
           tmt_context: "arch=x86_64;distro=cs-10"
           tmt_plan_regex: bootc
           tf_scope: private
           variables: "ARCH=x86_64"
           timeout: 90
-          update_pull_request_status: true
           secrets: "QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }};STAGE_REDHAT_IO_USERNAME=${{ secrets.STAGE_REDHAT_IO_USERNAME }};STAGE_REDHAT_IO_TOKEN=${{ secrets.STAGE_REDHAT_IO_TOKEN }};DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
 
-  Fedora-43-bootc:
+  fedora-43-bootc:
     needs: check-pull-request
     if: ${{ needs.check-pull-request.outputs.allowed_user == 'true' }}
     continue-on-error: true
@@ -94,6 +95,8 @@ jobs:
           api_key: ${{ secrets.TF_API_KEY }}
           git_url: ${{ needs.check-pull-request.outputs.repo_url }}
           git_ref: ${{ needs.check-pull-request.outputs.ref }}
+          update_pull_request_status: true
+          pull_request_status_name: fedora-43-bootc
           tmt_context: "arch=x86_64;distro=fedora-43"
           tmt_plan_regex: bootc
           tf_scope: private
@@ -102,7 +105,7 @@ jobs:
           update_pull_request_status: true
           secrets: "QUAY_USERNAME=${{ secrets.QUAY_USERNAME }};QUAY_PASSWORD=${{ secrets.QUAY_PASSWORD }};STAGE_REDHAT_IO_USERNAME=${{ secrets.STAGE_REDHAT_IO_USERNAME }};STAGE_REDHAT_IO_TOKEN=${{ secrets.STAGE_REDHAT_IO_TOKEN }};DOWNLOAD_NODE=${{ secrets.DOWNLOAD_NODE }}"
 
-  Centos-9-ostree:
+  centos-9-ostree:
     needs: check-pull-request
     if: ${{ needs.check-pull-request.outputs.allowed_user == 'true' }}
     continue-on-error: true
@@ -116,6 +119,8 @@ jobs:
           api_key: ${{ secrets.TF_API_KEY }}
           git_url: ${{ needs.check-pull-request.outputs.repo_url }}
           git_ref: ${{ needs.check-pull-request.outputs.ref }}
+          update_pull_request_status: true
+          pull_request_status_name: centos-9-ostree
           tmt_context: "arch=x86_64;distro=cs-9"
           tmt_plan_regex: ostree
           tf_scope: private

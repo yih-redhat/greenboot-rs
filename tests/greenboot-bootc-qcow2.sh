@@ -38,6 +38,7 @@ case "${ID}-${VERSION_ID}" in
         BIB_URL="quay.io/centos-bootc/bootc-image-builder:latest"
         BOOT_ARGS="uefi"
         sudo dnf install -y rpmbuild rust-packaging
+        sudo dnf install -y rust-anyhow-devel rust-clap+default-devel rust-clap_derive-devel rust-config-devel rust-env_logger-devel rust-glob-devel rust-once_cell-devel rust-pretty_env_logger-devel rust-serde_json-devel rust-tempfile+default-devel rust-thiserror-devel rust-config+default-devel rust-nix-devel
         ;;
     "centos-10")
         OS_VARIANT="centos-stream9"

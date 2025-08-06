@@ -1,11 +1,9 @@
 [Unit]
 Description=Greenboot Health Checks Runner
-DefaultDependencies=no
-Before=boot-complete.target systemd-update-done.service
+Before=boot-complete.target
 OnFailureJobMode=fail
 RequiresMountsFor=/boot
 RequiresMountsFor=/etc
-OnFailure=greenboot-rollback.service
 
 [Service]
 Type=oneshot
@@ -17,4 +15,4 @@ PrivateMounts=yes
 [Install]
 RequiredBy=boot-complete.target
 WantedBy=multi-user.target
-Also=greenboot-success.target
+Also=greenboot-success.target greenboot-set-rollback-trigger.service

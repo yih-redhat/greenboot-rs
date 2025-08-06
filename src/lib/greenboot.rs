@@ -207,7 +207,7 @@ mod test {
     #[test]
     fn test_missing_required_folder() {
         for path in GREENBOOT_INSTALL_PATHS {
-            let required_path = format!("{}/check/required.d", path);
+            let required_path = format!("{path}/check/required.d");
             if Path::new(&required_path).exists() {
                 fs::remove_dir_all(&required_path).unwrap();
             }
@@ -238,27 +238,26 @@ mod test {
         for base_path in GREENBOOT_INSTALL_PATHS {
             // Causes errors if these are not removed since they cause an excess amount
             // of failures.
-            let _ = std::fs::remove_file(format!("{}/01_failing_binary", base_path));
-            let _ = std::fs::remove_file(format!("{}/02_failing_binary", base_path));
+            let _ = std::fs::remove_file(format!("{base_path}/01_failing_binary"));
+            let _ = std::fs::remove_file(format!("{base_path}/02_failing_binary"));
 
-            let counter_file = format!("{}/fail_counter.txt", base_path);
+            let counter_file = format!("{base_path}/fail_counter.txt");
             let mut file = File::create(&counter_file).expect("Failed to create counter file");
             writeln!(file, "0").unwrap();
 
             // Inject counter logic into the failing scripts
             for name in ["01_failing_script", "02_failing_script"] {
-                let path = format!("{}/check/required.d/{}.sh", base_path, name);
+                let path = format!("{base_path}/check/required.d/{name}.sh");
                 let mut script = File::create(&path).unwrap();
                 writeln!(
                     script,
-                    "#!/bin/bash\nCOUNTER_FILE=\"{}\"\ncount=$(cat $COUNTER_FILE)\necho $((count + 1)) >| $COUNTER_FILE\nexit 1",
-                    counter_file
+                    "#!/bin/bash\nCOUNTER_FILE=\"{counter_file}\"\ncount=$(cat $COUNTER_FILE)\necho $((count + 1)) >| $COUNTER_FILE\nexit 1"
                 ).unwrap();
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
             }
 
             let result = run_diagnostics(vec![]);
-            log::debug!("Diagnostics result: {:?}", result);
+            log::debug!("Diagnostics result: {result:?}");
 
             assert!(result.is_err());
             assert_eq!(
@@ -281,7 +280,7 @@ mod test {
             // Clean up the created scripts
             // Necessary as otherwise they will trip up other install paths
             for name in ["01_failing_script", "02_failing_script"] {
-                fs::remove_file(format!("{}/check/required.d/{}.sh", base_path, name))
+                fs::remove_file(format!("{base_path}/check/required.d/{name}.sh"))
                     .expect("Failed to remove script file");
             }
         }
@@ -315,9 +314,9 @@ mod test {
         // Removing extra failing binaries because this can cause a
         // failure if not added to the skips or removed as done below.
         for base_path in GREENBOOT_INSTALL_PATHS {
-            let required_path = format!("{}/check/required.d", base_path);
-            let _ = std::fs::remove_file(format!("{}/01_failing_binary", required_path));
-            let _ = std::fs::remove_file(format!("{}/02_failing_binary", required_path));
+            let required_path = format!("{base_path}/check/required.d");
+            let _ = std::fs::remove_file(format!("{required_path}/01_failing_binary"));
+            let _ = std::fs::remove_file(format!("{required_path}/02_failing_binary"));
         }
 
         // Skip the disabled script in required.d ,since there are two
@@ -345,9 +344,9 @@ mod test {
         // Removing extra failing scripts because this can cause a
         // failure if not added to the skips or removed as done below
         for base_path in GREENBOOT_INSTALL_PATHS {
-            let required_path = format!("{}/check/required.d", base_path);
-            let _ = std::fs::remove_file(format!("{}/01_failing_script.sh", required_path));
-            let _ = std::fs::remove_file(format!("{}/02_failing_script.sh", required_path));
+            let required_path = format!("{base_path}/check/required.d");
+            let _ = std::fs::remove_file(format!("{required_path}/01_failing_script.sh"));
+            let _ = std::fs::remove_file(format!("{required_path}/02_failing_script.sh"));
         }
 
         // Skip the disabled script in required.d ,since there are two
@@ -371,8 +370,8 @@ mod test {
         let failing_test_binary = "testing_assets/failing_binary";
 
         for install_path in GREENBOOT_INSTALL_PATHS {
-            let required_path = format!("{}/check/required.d", install_path);
-            let wanted_path = format!("{}/check/wanted.d", install_path);
+            let required_path = format!("{install_path}/check/required.d");
+            let wanted_path = format!("{install_path}/check/wanted.d");
             fs::create_dir_all(&required_path).expect("cannot create folder");
             fs::create_dir_all(&wanted_path).expect("cannot create folder");
 

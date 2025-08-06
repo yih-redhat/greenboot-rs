@@ -1,0 +1,12 @@
+[Unit]
+Description=Greenboot Rollback trigger
+After=systemd-update-done.service
+Requisite=systemd-update-done.service
+Before=greenboot-healthcheck.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/greenboot/greenboot set-rollback-trigger
+
+[Install]
+WantedBy=systemd-update-done.service greenboot-healthcheck.service

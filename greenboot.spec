@@ -94,17 +94,17 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 
 %post
 %systemd_post greenboot-healthcheck.service
-%systemd_post greenboot-rollback.service
+%systemd_post greenboot-set-rollback-trigger.service
 %systemd_post greenboot-success.target
 
 %preun
 %systemd_preun greenboot-healthcheck.service
-%systemd_preun greenboot-rollback.service
+%systemd_preun greenboot-set-rollback-trigger.service
 %systemd_preun greenboot-success.target
 
 %postun
 %systemd_postun greenboot-healthcheck.service
-%systemd_postun greenboot-rollback.service
+%systemd_postun greenboot-set-rollback-trigger.service
 %systemd_postun greenboot-success.target
 
 %files
@@ -113,7 +113,7 @@ install -DpZm 0755 usr/lib/greenboot/check/wanted.d/* %{buildroot}%{_prefix}/lib
 %dir %{_libexecdir}/%{name}
 %{_libexecdir}/%{name}/%{name}
 %{_unitdir}/greenboot-healthcheck.service
-%{_unitdir}/greenboot-rollback.service
+%{_unitdir}/greenboot-set-rollback-trigger.service
 %{_unitdir}/greenboot-success.target
 %{_sysconfdir}/%{name}/greenboot.conf
 %{_prefix}/lib/bootupd/grub2-static/configs.d/08_greenboot.cfg

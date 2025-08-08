@@ -2,8 +2,9 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use config::{Config, File, FileFormat};
 use greenboot::{
-    handle_motd, handle_reboot, handle_rollback, run_diagnostics, run_green, run_red,
-    set_boot_counter, set_boot_status, unset_boot_counter,
+    get_boot_counter, get_rollback_trigger, handle_motd, handle_reboot, handle_rollback,
+    run_diagnostics, run_green, run_red, set_boot_counter, set_boot_status, set_rollback_trigger,
+    unset_boot_counter, unset_rollback_trigger,
 };
 use serde::Deserialize;
 use std::process::Command;
@@ -95,10 +96,10 @@ impl LogLevel {
 ///
 /// greenboot health-check -> runs the custom health checks
 ///
-/// greenboot rollback -> if boot_counter satisfies it trigger rollback
+/// greenboot set-rollback-trigger -> sets rollback trigger flag for next boot
 enum Commands {
     HealthCheck,
-    Rollback,
+    SetRollbackTrigger,
 }
 
 /// Check if greenboot-rollback.service successfully ran in the previous boot
@@ -109,7 +110,7 @@ fn check_previous_rollback() -> Result<bool> {
         .arg("-b")
         .arg("-1")
         .arg("-u")
-        .arg("greenboot-rollback.service")
+        .arg("greenboot-healthcheck.service")
         .arg("--no-pager")
         .output()
         .context("Failed to execute journalctl command to check rollback status")?;
@@ -192,7 +193,15 @@ fn health_check() -> Result<()> {
                 previous_rollback,
             )?)
             .unwrap_or_else(|e| log::error!("cannot set motd: {e}"));
+
             set_boot_status(true, GRUB_PATH, MOUNT_INFO_PATH)?;
+
+            // Unset rollback trigger on successful health check
+            if get_rollback_trigger(GRUB_PATH).unwrap_or(false) {
+                unset_rollback_trigger(GRUB_PATH, MOUNT_INFO_PATH)
+                    .unwrap_or_else(|e| log::error!("Failed to unset rollback trigger: {e}"));
+            }
+
             Ok(())
         }
         Err(e) => {
@@ -211,24 +220,57 @@ fn health_check() -> Result<()> {
 
             set_boot_status(false, GRUB_PATH, MOUNT_INFO_PATH)
                 .unwrap_or_else(|e| log::error!("cannot set boot_status: {e}"));
-            set_boot_counter(config.max_reboot, GRUB_PATH, MOUNT_INFO_PATH)
-                .unwrap_or_else(|e| log::error!("cannot set boot_counter: {e}"));
-            handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
-            bail!("greenboot healthcheck failed")
-        }
-    }
-}
 
-/// initiates rollback if boot_counter and satisfies
-fn trigger_rollback() -> Result<()> {
-    match handle_rollback() {
-        Ok(()) => {
-            log::info!("Rollback successful");
-            unset_boot_counter(GRUB_PATH, MOUNT_INFO_PATH)?;
-            handle_reboot(true)
-        }
-        Err(e) => {
-            bail!("{e}, Rollback is not initiated");
+            // Check if boot_counter is 0 (exhausted retries) or if no counter is set
+            match get_boot_counter(GRUB_PATH)? {
+                Some(counter) if counter > 0 => {
+                    // Still have retries left, just reboot
+                    log::info!("Boot counter is {counter}, rebooting to try again");
+                    handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                }
+                Some(_) => {
+                    // Boot counter reached 0 (or negative) - check rollback trigger
+                    if get_rollback_trigger(GRUB_PATH).unwrap_or(false) {
+                        log::info!(
+                            "Boot counter exhausted and rollback trigger is set - initiating rollback"
+                        );
+                        match handle_rollback() {
+                            Ok(()) => {
+                                log::info!("Rollback successful");
+                                unset_boot_counter(GRUB_PATH, MOUNT_INFO_PATH).unwrap_or_else(
+                                    |e| log::error!("Failed to unset boot counter: {e}"),
+                                );
+                                unset_rollback_trigger(GRUB_PATH, MOUNT_INFO_PATH).unwrap_or_else(
+                                    |e| log::error!("Failed to unset rollback trigger: {e}"),
+                                );
+                                handle_reboot(true)
+                                    .unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                            }
+                            Err(rollback_err) => {
+                                log::error!("Rollback failed: {rollback_err}");
+                                bail!("Manual intervention required - rollback failed");
+                            }
+                        }
+                    } else {
+                        log::warn!(
+                            "Boot counter exhausted but no rollback trigger set - manual intervention required"
+                        );
+                        bail!("Manual intervention required - no rollback trigger");
+                    }
+                }
+                None => {
+                    // No boot counter set - this is the first failure, set it and reboot
+                    log::info!(
+                        "First health check failure, setting boot counter to {}",
+                        config.max_reboot
+                    );
+                    set_boot_counter(config.max_reboot, GRUB_PATH, MOUNT_INFO_PATH)
+                        .unwrap_or_else(|e| log::error!("cannot set boot_counter: {e}"));
+                    handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                }
+            }
+
+            bail!("greenboot healthcheck failed")
         }
     }
 }
@@ -274,6 +316,11 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::HealthCheck => health_check(),
-        Commands::Rollback => trigger_rollback(),
+        Commands::SetRollbackTrigger => {
+            log::info!("Setting rollback trigger for next boot...");
+            set_rollback_trigger(GRUB_PATH, MOUNT_INFO_PATH)?;
+            log::info!("Rollback trigger set successfully.");
+            Ok(())
+        }
     }
 }

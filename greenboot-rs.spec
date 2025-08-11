@@ -10,9 +10,9 @@ Version:            0.16.0
 %forgemeta
 
 Name:               greenboot-rs
-Release:            0%{?dist}
+Release:            2%{?dist}
 Summary:            Generic Health Check Framework for systemd
-License:            LGPLv2+
+License:            BSD-3-Clause
 
 URL:               %{forgeurl}
 Source0:           %{forgesource}

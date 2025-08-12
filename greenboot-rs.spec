@@ -1,21 +1,17 @@
-%global debug_package %{nil}
-%bcond_without check
-%global __cargo_skip_build 0
-%global __cargo_is_lib() false
-%global forgeurl https://github.com/fedora-iot/greenboot-rs
-%global pkgname greenboot
-
-Version:            0.16.0
-
-%forgemeta
-
 Name:               greenboot-rs
+Version:            0.16.0
 Release:            2%{?dist}
 Summary:            Generic Health Check Framework for systemd
 License:            BSD-3-Clause
 
-URL:               %{forgeurl}
-Source0:           %{forgesource}
+%bcond_without check
+%global __cargo_skip_build 0
+%global __cargo_is_lib() false
+%global pkgname greenboot
+
+
+URL:                https://github.com/fedora-iot/greenboot-rs
+Source0:            %{name}-%{version}.tar.gz
 
 ExcludeArch:    s390x i686 %{power64}
 
@@ -26,23 +22,9 @@ BuildRequires:  rust-packaging
 %endif
 BuildRequires:      systemd-rpm-macros
 
-# greenboot dependencies
-BuildRequires: rust-anyhow-devel
-BuildRequires: rust-clap+default-devel
-BuildRequires: rust-clap_derive-devel
-BuildRequires: rust-config-devel
-BuildRequires: rust-env_logger-devel
-BuildRequires: rust-glob-devel
-BuildRequires: rust-once_cell-devel
-BuildRequires: rust-pretty_env_logger-devel
-BuildRequires: rust-serde_json-devel
-BuildRequires: rust-tempfile+default-devel
-BuildRequires: rust-thiserror-devel
-BuildRequires: rust-config+default-devel
-BuildRequires: rust-nix-devel
-
 %{?systemd_requires}
 Requires:           systemd >= 240
+Requires:           bootupd
 Requires:           rpm-ostree
 # PAM is required to programmatically read motd messages from /etc/motd.d/*
 # This causes issues with RHEL-8 as the fix isn't there an el8 is on pam-1.3.x
@@ -78,8 +60,11 @@ Requires:           jq
 %{summary}.
 
 %prep
-%forgeautosetup
+%autosetup -n %{name}-%{version}
 %cargo_prep
+
+%generate_buildrequires
+%cargo_generate_buildrequires -a
 
 %build
 %cargo_build
@@ -132,7 +117,7 @@ install -DpZm 0644 usr/lib/systemd/system/greenboot-healthcheck.service.d/10-net
 %{_unitdir}/greenboot-healthcheck.service
 %{_unitdir}/greenboot-set-rollback-trigger.service
 %{_unitdir}/greenboot-success.target
-%{_sysconfdir}/%{pkgname}/greenboot.conf
+%config(noreplace) %{_sysconfdir}/%{pkgname}/greenboot.conf
 %{_prefix}/lib/bootupd/grub2-static/configs.d/08_greenboot.cfg
 %dir %{_prefix}/lib/%{pkgname}
 %dir %{_prefix}/lib/%{pkgname}/check
@@ -148,6 +133,7 @@ install -DpZm 0644 usr/lib/systemd/system/greenboot-healthcheck.service.d/10-net
 %dir %{_sysconfdir}/%{pkgname}/red.d
 
 %files -n %{pkgname}-default-health-checks
+%dir %{_unitdir}/greenboot-healthcheck.service.d
 %{_prefix}/lib/%{pkgname}/check/wanted.d/01_update_platforms_check.sh
 %{_prefix}/lib/%{pkgname}/check/required.d/02_watchdog.sh
 %{_prefix}/lib/%{pkgname}/check/required.d/01_repository_dns_check.sh
@@ -158,6 +144,6 @@ install -DpZm 0644 usr/lib/systemd/system/greenboot-healthcheck.service.d/10-net
 - Update src to greenboot-rs, binaries remain greenboot
 - Obsoletes/Conflicts for bash greenboot, Provides greenboot
 
-* Thu Jul 24 2025 Sayan Paul <paul.sayan@gmail.com> - 0.16.0-1
+* Thu Jul 24 2025 Sayan Paul <saypaul@redhat.com> - 0.16.0-1
 - Initial Package
 - Switched to native Fedora dependencies, removing vendoring.

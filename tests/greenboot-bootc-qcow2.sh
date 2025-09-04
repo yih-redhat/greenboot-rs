@@ -39,6 +39,13 @@ case "${ID}-${VERSION_ID}" in
         BOOT_ARGS="uefi"
         sudo dnf install -y rpmbuild rust-packaging
         ;;
+    "fedora-44")
+        OS_VARIANT="fedora-rawhide"
+        BASE_IMAGE_URL="quay.io/fedora/fedora-bootc:44"
+        BIB_URL="quay.io/centos-bootc/bootc-image-builder:latest"
+        BOOT_ARGS="uefi"
+        sudo dnf install -y rpmbuild rust-packaging
+        ;;
     "centos-10")
         OS_VARIANT="centos-stream9"
         BASE_IMAGE_URL="quay.io/centos-bootc/centos-bootc:stream10"

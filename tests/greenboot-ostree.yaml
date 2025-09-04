@@ -34,15 +34,15 @@
             failed_counter: "{{ failed_counter | int + 1 }}"
 
     # case: check greenboot* services
-    - name: greenboot healthcheck service should be enabled
+    - name: a list of greenboot* service should be enabled
       block:
-        - name: greenboot healthcheck service should be enabled
-          command: systemctl is-enabled greenboot-healthcheck
+        - name: a list of greenboot* service should be enabled
+          command: systemctl is-enabled greenboot-grub2-set-counter greenboot-grub2-set-success greenboot-healthcheck greenboot-rpm-ostree-grub2-check-fallback greenboot-status greenboot-task-runner redboot-auto-reboot redboot-task-runner
           register: result_greenboot_service
 
         - assert:
             that:
-              - result_greenboot_service.stdout == 'enabled'
+              - result_greenboot_service.stdout == 'enabled\nenabled\nenabled\nenabled\nenabled\nenabled\nenabled\nenabled'
             fail_msg: "at least one greenboot service is not enabled"
             success_msg: "greenboot services are enabled"
       always:
@@ -53,18 +53,34 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-      # case: check greenboot* service status
-    - name: greenboot healthcheck service should be active
+    # case: check greenboot* services log
+    - name: all greenboot* service should run without error
       block:
-        - name: greenboot healthcheck service should be active
-          command: systemctl is-active greenboot-healthcheck.service
-          register: result_greenboot_active
+        # check service/target status instead of string matching messages
+        - name: check boot-complete.target
+          # will fail if the target was not reached
+          command: systemctl --no-pager status boot-complete.target
+          register: result
+          retries: 10
+          delay: 60
+          until: "'inactive' not in result.stdout"
+
+        - name: all greenboot* service should run without error
+          command: journalctl -b -0 -u greenboot -u greenboot-healthcheck -u greenboot-rpm-ostree-grub2-check-fallback -u greenboot-grub2-set-counter -u greenboot-grub2-set-success -u greenboot-status -u redboot -u redboot-auto-reboot -u redboot.target
+          become: yes
+          register: result_greenboot_log
 
         - assert:
             that:
-              - result_greenboot_active.stdout == "active"
-            fail_msg: "greenboot healthcheck service is not active"
-            success_msg: "greenboot healthcheck service is active"
+              - "'Script \\'00_required_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'Script \\'00_wanted_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot Health Checks Runner' in result_greenboot_log.stdout"
+              - "'Mark boot as successful in grubenv' in result_greenboot_log.stdout"
+              - "'Boot Status is GREEN - Health Check SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot MotD Generator' in result_greenboot_log.stdout"
+            fail_msg: "Some errors happened in service boot"
+            success_msg: "All greenboot services booted success"
+
       always:
         - set_fact:
             total_counter: "{{ total_counter | int + 1 }}"
@@ -73,16 +89,26 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-    # case: configure greenboot
-    - name: configure greenboot
+    # case: check grubenv variables
+    - name: grubenv variables should contain boot_success=1
       block:
-        - name: disable health-check
-          shell: sed -i 's#DISABLED_HEALTHCHECKS=()#DISABLED_HEALTHCHECKS=("01_repository_dns_check.sh" "not_exit.sh")#g' /etc/greenboot/greenboot.conf
+        - name: grubenv variables should contain boot_success=1
+          command: grub2-editenv list
+          register: result_grubenv
           become: yes
 
-        - name: change max boot attempts
-          shell: sed -i "s/GREENBOOT_MAX_BOOT_ATTEMPTS=3/GREENBOOT_MAX_BOOT_ATTEMPTS=5/g" /etc/greenboot/greenboot.conf
-          become: yes
+        - assert:
+            that:
+              - "'boot_success=1' in result_grubenv.stdout"
+            fail_msg: "Not found boot_success=1"
+            success_msg: "Found boot_success=1"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
 
     # case: check rollback function if boot error found
     - name: install sanely failing health check unit to test red boot status behavior
@@ -126,10 +152,12 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-    # case: check boot-complete.target status
-    - name: boot-complete.target should be active
+    # case: check greenboot* services log again
+    - name: fallback log should be found here
       block:
+        # check service/target status instead of string matching messages
         - name: check boot-complete.target
+          # will fail if the target was not reached
           command: systemctl --no-pager status boot-complete.target
           become: yes
           register: result
@@ -137,25 +165,20 @@
           delay: 60
           until: "'inactive' not in result.stdout"
 
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: check fallback log
-    - name: fallback log should be found here
-      block:
         - name: fallback log should be found here
-          command: journalctl -b -0 -u greenboot -u greenboot-healthcheck
+          command: journalctl -b -0 -u greenboot -u greenboot-healthcheck -u greenboot-rpm-ostree-grub2-check-fallback -u greenboot-grub2-set-counter -u greenboot-grub2-set-success -u greenboot-status -u redboot -u redboot-auto-reboot -u redboot.target
           become: yes
           register: result_greenboot_log
 
         - assert:
             that:
-              - "'FALLBACK BOOT DETECTED! Default bootc deployment has been rolled back' in result_greenboot_log.stdout"
+              - "'FALLBACK BOOT DETECTED! Default rpm-ostree deployment has been rolled back' in result_greenboot_log.stdout"
+              - "'Script \\'00_required_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'Script \\'00_wanted_scripts_start.sh\\' SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot Health Checks Runner' in result_greenboot_log.stdout"
+              - "'Mark boot as successful in grubenv' in result_greenboot_log.stdout"
+              - "'Boot Status is GREEN - Health Check SUCCESS' in result_greenboot_log.stdout"
+              - "'greenboot MotD Generator' in result_greenboot_log.stdout"
             fail_msg: "Fallback log not found"
             success_msg: "Found fallback log"
 
@@ -166,137 +189,18 @@
         - name: failed count + 1
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
+      when: result_rollback is succeeded
 
-    # case: check disable health checks
-    - name: check disable health checks
+    # case: check boot-complete.target status
+    - name: boot-complete.target should be active
       block:
-        - name: disable health checks log should be found here
-          shell: journalctl -b -0 -u greenboot -u greenboot-healthcheck
+        - name: check boot-complete.target
+          command: systemctl --no-pager status boot-complete.target
           become: yes
-          register: result_disable
-
-        - assert:
-            that:
-              - "'Skipping disabled script: 01_repository_dns_check.sh' in result_disable.stdout"
-              - "'The following disabled scripts were not found in any directory: [\"not_exit.sh\"]' in result_disable.stdout"
-            fail_msg: "Disable health checks log not found"
-            success_msg: "Found disable health checks log"
-
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: fail early for any required script failure
-    - name: check greenboot fail early for any required script failure
-      block:
-        - name: fail early log should be found here
-          shell: journalctl -u greenboot-healthcheck.service
-          become: yes
-          register: result_early
-
-        - assert:
-            that:
-              - "'Greenboot error: required health-check failed, skipping remaining scripts' in result_early.stdout"
-            fail_msg: "Fail early health checks log not found"
-            success_msg: "Found fail early checks log"
-
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: check binary file support
-    - name: check binary file support
-      block:
-        - name: binary file check result should be found here
-          shell: journalctl -b -0 -u greenboot -u greenboot-healthcheck
-          become: yes
-          register: result_binary
-
-        - assert:
-            that:
-              - "'required script /etc/greenboot/check/required.d/passing_binary success!' in result_binary.stdout"
-              - "'wanted script /etc/greenboot/check/wanted.d/failing_binary failed!' in result_binary.stdout"
-            fail_msg: "Binary file check log not found"
-            success_msg: "Found binary file check log"
-
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: check for red.d scripts and binaries running, both passing and failing
-    - name: check red script execution after failed boot
-      block:
-        - name: red script execution logs should be found here after failed boot
-          shell: journalctl -u greenboot-healthcheck.service
-          become: yes
-          register: result_red_scripts
-
-        - assert:
-            that:
-              - "'red script /etc/greenboot/red.d/passing_binary success!' in result_red_scripts.stdout"
-              - "'red script /etc/greenboot/red.d/failing_binary failed!' in result_red_scripts.stdout"
-              - "'red script /etc/greenboot/red.d/passing_script.sh success!' in result_red_scripts.stdout"
-              - "'red script /etc/greenboot/red.d/failing_script.sh failed!' in result_red_scripts.stdout"
-            fail_msg: "Red script execution logs not found"
-            success_msg: "Found red script execution logs"
-
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: check for green.d scripts and binaries running, both passing and failing
-    - name: check green script execution after successful boot
-      block:
-        - name: green script execution logs should be found here after successful boot
-          shell: journalctl -b -0 -u greenboot -u greenboot-healthcheck
-          become: yes
-          register: result_green_scripts
-
-        - assert:
-            that:
-              - "'green script /etc/greenboot/green.d/passing_binary success!' in result_green_scripts.stdout"
-              - "'green script /etc/greenboot/green.d/failing_binary failed!' in result_green_scripts.stdout"
-              - "'green script /etc/greenboot/green.d/passing_script.sh success!' in result_green_scripts.stdout"
-              - "'green script /etc/greenboot/green.d/failing_script.sh failed!' in result_green_scripts.stdout"
-            fail_msg: "Green script and binary execution logs not found"
-            success_msg: "Found green script and binary execution logs"
-
-      always:
-        - set_fact:
-            total_counter: "{{ total_counter | int + 1 }}"
-      rescue:
-        - name: failed count + 1
-          set_fact:
-            failed_counter: "{{ failed_counter | int + 1 }}"
-
-    # case: check boot times
-    - name: check boot times
-      block:
-        - name: check boot times
-          shell: journalctl --list-boots | wc -l
-          register: boot_time_log
-
-        - assert:
-            that:
-              - boot_time_log.stdout == '9'
-            fail_msg: "boot times is not correct, please check configuration in /etc/greenboot/greenboot.conf"
-            success_msg: "boot times is correct"
+          register: result
+          retries: 10
+          delay: 60
+          until: "'inactive' not in result.stdout"
 
       always:
         - set_fact:

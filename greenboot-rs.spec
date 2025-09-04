@@ -6,16 +6,21 @@
 
 Name:		greenboot-rs
 Version:	0.16.0
-Release:	4%{?dist}
+Release:	5%{?dist}
 Summary:	Generic Health Check Framework for systemd
 # Aggregated license of statically linked dependencies as per %%cargo_license_summary
 License:	BSD-3-Clause AND ISC AND MIT AND Unicode-DFS-2016 AND (Apache-2.0 OR BSL-1.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (Unlicense OR MIT)
 URL:		https://github.com/fedora-iot/greenboot-rs
 Source0:	%{url}/releases/download/%{version}/%{name}-%{version}.tar.gz
+Source1:	%{name}-%{version}-vendor-patched.tar.xz
 
 ExcludeArch:	%{ix86}
 
+%if 0%{?eln} || 0%{?centos} || 0%{?rhel}
+BuildRequires:	rust-toolset
+%else
 BuildRequires:	cargo-rpm-macros
+%endif
 BuildRequires:	systemd-rpm-macros
 
 
@@ -51,16 +56,24 @@ Requires:	jq
 This package adds some default healthchecks for greenboot.
 
 %prep
+%if 0%{?eln} || 0%{?centos} || 0%{?rhel}
+%autosetup -p1 -a1 -n %{name}-%{version}
+%cargo_prep -v vendor
+%else
 %autosetup -n %{name}-%{version}
 %cargo_prep
-
 %generate_buildrequires
 %cargo_generate_buildrequires
+%endif
 
 %build
 %cargo_build
 %{cargo_license_summary}
 %{cargo_license} > LICENSE.dependencies
+
+%if 0%{?centos}
+%cargo_vendor_manifest
+%endif
 
 %install
 mkdir -p %{buildroot}%{_libexecdir}
@@ -132,6 +145,9 @@ install -DpZm 0644 usr/lib/systemd/system/greenboot-healthcheck.service.d/10-net
 %{_unitdir}/greenboot-healthcheck.service.d/10-network-online.conf
 
 %changelog
+* Mon Sep 01 2025 Mario Cattamo <mcattamo@redhat.com> - 0.16.0-5
+- Handle vendor packages in Centos-Stream
+
 * Mon Aug 25 2025 Sayan Paul <saypaul@redhat.com> - 0.16.0-4
 - Adhering to rust packaging best practices
 

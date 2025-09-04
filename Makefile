@@ -137,7 +137,7 @@ integration-test:
 
 	@# Verify supported operating system
 	@. /etc/os-release; \
-	if [ "$$ID" = "fedora" ] && { [ "$$VERSION_ID" = "rawhide" ] || [ "$$VERSION_ID" = "43" ]; }; then \
+	if [ "$$ID" = "fedora" ] && { [ "$$VERSION_ID" = "rawhide" ] || [ "$$VERSION_ID" = "43" ] || [ "$$VERSION_ID" = "44" ]; }; then \
 		echo "Running on Fedora $$VERSION_ID"; \
 	elif [ "$$ID" = "centos" ] && [ "$$VERSION_ID" = "10" ]; then \
 		echo "Running on CentOS Stream $$VERSION_ID"; \

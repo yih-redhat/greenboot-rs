@@ -111,13 +111,22 @@ where
     let was_rw =
         is_boot_rw().map_err(|e| anyhow::anyhow!("Failed to check boot mount state: {}", e))?;
 
+    log::info!(
+        "Initial /boot mount state: {}",
+        if was_rw { "rw" } else { "ro" }
+    );
+
     if !was_rw {
+        log::info!("Remounting /boot as rw for operation");
         remount_boot_rw().context("Failed to remount /boot as rw")?;
+    } else {
+        log::info!("/boot is already rw; no remount needed");
     }
 
     let op_result = f();
 
     if !was_rw {
+        log::info!("Restoring /boot mount to ro");
         remount_boot_ro().context("Failed to remount /boot as ro")?;
     }
 

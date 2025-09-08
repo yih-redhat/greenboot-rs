@@ -14,7 +14,6 @@ use std::process::Command;
 
 /// greenboot config path
 static GREENBOOT_CONFIG_FILE: &str = "/etc/greenboot/greenboot.conf";
-static GRUB_PATH: &str = "/boot/grub2/grubenv";
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -217,11 +216,11 @@ fn health_check() -> Result<()> {
             )?)
             .unwrap_or_else(|e| log::error!("cannot set motd: {e}"));
 
-            with_boot_rw(|| set_boot_status(true, GRUB_PATH))?;
+            with_boot_rw(|| set_boot_status(true))?;
 
             // Unset rollback trigger on successful health check
-            if get_rollback_trigger(GRUB_PATH).unwrap_or(false) {
-                with_boot_rw(|| unset_rollback_trigger(GRUB_PATH))
+            if get_rollback_trigger().unwrap_or(false) {
+                with_boot_rw(unset_rollback_trigger)
                     .unwrap_or_else(|e| log::error!("Failed to unset rollback trigger: {e}"));
             }
 
@@ -241,11 +240,11 @@ fn health_check() -> Result<()> {
                 errors.iter().for_each(|e| log::error!("{e}"));
             }
 
-            with_boot_rw(|| set_boot_status(false, GRUB_PATH))
+            with_boot_rw(|| set_boot_status(false))
                 .unwrap_or_else(|e| log::error!("cannot set boot_status: {e}"));
 
             // Check if boot_counter is 0 (exhausted retries) or if no counter is set
-            match get_boot_counter(GRUB_PATH)? {
+            match get_boot_counter()? {
                 Some(counter) if counter > 0 => {
                     // Still have retries left, just reboot
                     log::info!("Boot counter is {counter}, rebooting to try again");
@@ -253,7 +252,7 @@ fn health_check() -> Result<()> {
                 }
                 Some(_) => {
                     // Boot counter reached 0 (or negative) - check rollback trigger
-                    if get_rollback_trigger(GRUB_PATH).unwrap_or(false) {
+                    if get_rollback_trigger().unwrap_or(false) {
                         log::info!(
                             "Boot counter exhausted and rollback trigger is set - initiating rollback"
                         );
@@ -261,8 +260,8 @@ fn health_check() -> Result<()> {
                             Ok(()) => {
                                 log::info!("Rollback successful");
                                 with_boot_rw(|| {
-                                    unset_boot_counter(GRUB_PATH)?;
-                                    unset_rollback_trigger(GRUB_PATH)?;
+                                    unset_boot_counter()?;
+                                    unset_rollback_trigger()?;
                                     Ok(())
                                 })
                                 .unwrap_or_else(|e| log::error!("Failed to clear grub vars: {e}"));
@@ -287,7 +286,7 @@ fn health_check() -> Result<()> {
                         "First health check failure, setting boot counter to {}",
                         config.max_reboot
                     );
-                    with_boot_rw(|| set_boot_counter(config.max_reboot, GRUB_PATH))
+                    with_boot_rw(|| set_boot_counter(config.max_reboot))
                         .unwrap_or_else(|e| log::error!("cannot set boot_counter: {e}"));
                     handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
                 }
@@ -341,7 +340,7 @@ fn main() -> Result<()> {
         Commands::HealthCheck => health_check(),
         Commands::SetRollbackTrigger => {
             log::info!("Setting rollback trigger for next boot...");
-            with_boot_rw(|| set_rollback_trigger(GRUB_PATH))?;
+            with_boot_rw(set_rollback_trigger)?;
             log::info!("Rollback trigger set successfully.");
             Ok(())
         }

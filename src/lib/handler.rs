@@ -36,7 +36,7 @@ fn detect_os_deployment() -> Option<&'static str> {
 /// reboots the system if boot_counter is greater than 0 or can be forced too
 pub fn handle_reboot(force: bool) -> Result<()> {
     if !force {
-        let boot_counter = get_boot_counter("/boot/grub2/grubenv")?;
+        let boot_counter = get_boot_counter()?;
         if boot_counter <= Some(0) {
             bail!("countdown ended, check greenboot-rollback status")
         };
@@ -48,7 +48,7 @@ pub fn handle_reboot(force: bool) -> Result<()> {
 
 /// Rollback to the previous deployment if the boot counter allows.
 pub fn handle_rollback() -> Result<()> {
-    let boot_counter = get_boot_counter("/boot/grub2/grubenv")?;
+    let boot_counter = get_boot_counter()?;
 
     match boot_counter {
         // Exit early if boot_counter is not set

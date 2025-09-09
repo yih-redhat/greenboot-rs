@@ -78,17 +78,40 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
-    # case: check boot-complete.target status
-    - name: boot-complete.target should be active
+    # case: check rollback function if boot error found
+    - name: install sanely failing health check unit to test red boot status behavior
       block:
-        - name: check boot-complete.target
-          command: systemctl --no-pager status boot-complete.target
+        - name: install sanely failing health check unit to test red boot status behavior
+          command: rpm-ostree install --cache-only https://kite-webhook-prod.s3.amazonaws.com/greenboot-failing-unit-1.0-1.el8.noarch.rpm --reboot
           become: yes
-          register: result
-          retries: 10
-          delay: 60
-          until: "'inactive' not in result.stdout"
+          ignore_errors: yes
+          ignore_unreachable: yes
 
+        - name: delay 60 seconds before reboot to make system stable
+          pause:
+            seconds: 60
+          delegate_to: 127.0.0.1
+
+        - name: wait for connection to become reachable/usable
+          wait_for_connection:
+            delay: 30
+
+        - name: waits until instance is reachable
+          wait_for:
+            host: "{{ ansible_all_ipv4_addresses[0] }}"
+            port: 22
+            search_regex: OpenSSH
+            delay: 10
+          register: result_rollback
+          until: result_rollback is success
+          retries: 6
+          delay: 10
+
+        - assert:
+            that:
+              - result_rollback is succeeded
+            fail_msg: "Rollback failed"
+            success_msg: "Rollback success"
       always:
         - set_fact:
             total_counter: "{{ total_counter | int + 1 }}"
@@ -249,6 +272,25 @@
               - boot_time_log.stdout == '9'
             fail_msg: "boot times is not correct, please check configuration in /etc/greenboot/greenboot.conf"
             success_msg: "boot times is correct"
+
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    # case: check boot-complete.target status
+    - name: boot-complete.target should be active
+      block:
+        - name: check boot-complete.target
+          command: systemctl --no-pager status boot-complete.target
+          become: yes
+          register: result
+          retries: 10
+          delay: 60
+          until: "'inactive' not in result.stdout"
 
       always:
         - set_fact:

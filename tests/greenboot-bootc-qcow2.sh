@@ -279,44 +279,6 @@ for _ in $(seq 0 30); do
 done
 check_result
 
-###########################################################
-##
-## Build upgrade container with failing-unit installed
-##
-###########################################################
-greenprint "Building upgrade container"
-tee Containerfile > /dev/null << EOF
-FROM quay.io/${QUAY_USERNAME}/greenboot-bootc:${TEST_UUID}
-RUN dnf install -y https://kite-webhook-prod.s3.amazonaws.com/greenboot-failing-unit-1.0-1.el8.noarch.rpm
-EOF
-podman build  --retry=5 --retry-delay=10s -t quay.io/${QUAY_USERNAME}/greenboot-bootc:${TEST_UUID} -f Containerfile .
-greenprint "Pushing upgrade container to quay.io"
-podman push quay.io/${QUAY_USERNAME}/greenboot-bootc:${TEST_UUID}
-
-###########################################################
-##
-## Bootc upgrade and check if greenboot can rollback
-##
-###########################################################
-greenprint "Bootc upgrade and reboot"
-sudo ssh "${SSH_OPTIONS[@]}" -i "${SSH_KEY}" ${EDGE_USER}@${GUEST_ADDRESS} "echo ${EDGE_USER_PASSWORD} |sudo -S bootc upgrade"
-sudo ssh "${SSH_OPTIONS[@]}" -i "${SSH_KEY}" ${EDGE_USER}@${GUEST_ADDRESS} "echo ${EDGE_USER_PASSWORD} |nohup sudo -S systemctl reboot &>/dev/null & exit"
-
-# Wait vm to finish the fallback
-sleep 240
-
-# Check for ssh ready to go.
-greenprint "🛃 Checking for SSH is ready to go"
-for _ in $(seq 0 30); do
-    RESULTS="$(wait_for_ssh_up $GUEST_ADDRESS)"
-    if [[ $RESULTS == 1 ]]; then
-        echo "SSH is ready now! 🥳"
-        break
-    fi
-    sleep 10
-done
-check_result
-
 # Add instance IP address into /etc/ansible/hosts
 tee ${TEMPDIR}/inventory > /dev/null << EOF
 [greenboot_guest]

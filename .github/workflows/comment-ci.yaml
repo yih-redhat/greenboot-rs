@@ -2,12 +2,14 @@
 name: CI Test
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
 
 jobs:
   check-pull-request:
     runs-on: ubuntu-latest
+    if: ${{ github.event.issue.pull_request &&
+            (endsWith(github.event.comment.body, '/test')) }}
     steps:
       - name: Query author repository permissions
         uses: octokit/request-action@v2.x
@@ -28,7 +30,7 @@ jobs:
         uses: octokit/request-action@v2.x
         id: pr-api
         with:
-          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.number }}
+          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

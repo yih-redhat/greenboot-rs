@@ -41,7 +41,7 @@ fn remount_boot_ro_at(mounts_path: &Path) -> Result<(), MountError> {
         true => {
             let output = Command::new("mount")
                 .arg("-o")
-                .arg("remount,ro")
+                .arg("remount,bind,ro")
                 .arg("/boot")
                 .stderr(Stdio::piped()) // Capture stderr for error handling
                 .output();

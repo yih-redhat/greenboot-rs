@@ -110,6 +110,10 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
+    - name: check /boot mount status
+      shell: findmnt -r -o OPTIONS -n /boot | awk -F "," '{print $1}'
+      register: result_boot_mount_before
+
     # case: check rollback function if boot error found
     - name: install sanely failing health check unit to test red boot status behavior
       block:
@@ -223,6 +227,25 @@
               - "'boot_success=1' in result_grubenv.stdout"
             fail_msg: "Not found boot_success=1"
             success_msg: "Found boot_success=1"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    - name: check /boot mount status
+      shell: findmnt -r -o OPTIONS -n /boot | awk -F "," '{print $1}'
+      register: result_boot_mount_after
+
+    - name: /boot status should be preserved
+      block:
+        - assert:
+            that:
+              - result_boot_mount_before.stdout == result_boot_mount_after.stdout
+            fail_msg: "/boot status is not preserved"
+            success_msg: "/boot status is preserved"
       always:
         - set_fact:
             total_counter: "{{ total_counter | int + 1 }}"

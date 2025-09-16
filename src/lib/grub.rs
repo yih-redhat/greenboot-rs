@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use anyhow::{Context, Result, bail};
-use std::path::Path;
 use std::process::Command;
 use std::str;
 
-use crate::mount::{remount_boot_ro, remount_boot_rw};
+/// Shared GRUB environment path used by default helpers
+static GRUB_PATH: &str = "/boot/grub2/grubenv";
 
 /// fetches boot_counter value, none if not set
-pub fn get_boot_counter(grub_path: &str) -> Result<Option<i32>> {
+pub fn get_boot_counter() -> Result<Option<i32>> {
+    get_boot_counter_at(GRUB_PATH)
+}
+
+fn get_boot_counter_at(grub_path: &str) -> Result<Option<i32>> {
     let grub_vars = Command::new("grub2-editenv")
         .arg(grub_path)
         .arg("list")
@@ -33,8 +37,12 @@ pub fn get_boot_counter(grub_path: &str) -> Result<Option<i32>> {
 }
 
 /// sets grub variable boot_counter if not set
-pub fn set_boot_counter(reboot_count: u16, grub_path: &str, mount_info_path: &str) -> Result<()> {
-    match get_boot_counter(grub_path) {
+pub fn set_boot_counter(reboot_count: u16) -> Result<()> {
+    set_boot_counter_at(reboot_count, GRUB_PATH)
+}
+
+fn set_boot_counter_at(reboot_count: u16, grub_path: &str) -> Result<()> {
+    match get_boot_counter_at(grub_path) {
         Ok(Some(i)) => {
             bail!("already set boot_counter={i}");
         }
@@ -48,36 +56,56 @@ pub fn set_boot_counter(reboot_count: u16, grub_path: &str, mount_info_path: &st
     }
 
     log::info!("setting boot counter");
-    set_grub_var("boot_counter", reboot_count, grub_path, mount_info_path)?;
+    set_grub_var("boot_counter", reboot_count, grub_path)?;
     Ok(())
 }
 /// sets grub variable boot_success
-pub fn set_boot_status(success: bool, grub_path: &str, mount_info_path: &str) -> Result<()> {
+pub fn set_boot_status(success: bool) -> Result<()> {
+    set_boot_status_at(success, GRUB_PATH)
+}
+
+fn set_boot_status_at(success: bool, grub_path: &str) -> Result<()> {
     if success {
-        set_grub_var("boot_success", 1, grub_path, mount_info_path)?;
-        unset_boot_counter(grub_path, mount_info_path)?;
+        set_grub_var("boot_success", 1, grub_path)?;
+        unset_boot_counter_at(grub_path)?;
         return Ok(());
     }
-    set_grub_var("boot_success", 0, grub_path, mount_info_path)
+    set_grub_var("boot_success", 0, grub_path)
 }
 
 /// unset boot_counter
-pub fn unset_boot_counter(grub_path: &str, mount_info_path: &str) -> Result<()> {
-    unset_grub_var("boot_counter", grub_path, mount_info_path)
+pub fn unset_boot_counter() -> Result<()> {
+    unset_boot_counter_at(GRUB_PATH)
+}
+
+fn unset_boot_counter_at(grub_path: &str) -> Result<()> {
+    unset_grub_var("boot_counter", grub_path)
 }
 
 /// sets greenboot_rollback_trigger=1
-pub fn set_rollback_trigger(grub_path: &str, mount_info_path: &str) -> Result<()> {
-    set_grub_var("greenboot_rollback_trigger", 1, grub_path, mount_info_path)
+pub fn set_rollback_trigger() -> Result<()> {
+    set_rollback_trigger_at(GRUB_PATH)
+}
+
+fn set_rollback_trigger_at(grub_path: &str) -> Result<()> {
+    set_grub_var("greenboot_rollback_trigger", 1, grub_path)
 }
 
 /// unsets greenboot_rollback_trigger
-pub fn unset_rollback_trigger(grub_path: &str, mount_info_path: &str) -> Result<()> {
-    unset_grub_var("greenboot_rollback_trigger", grub_path, mount_info_path)
+pub fn unset_rollback_trigger() -> Result<()> {
+    unset_rollback_trigger_at(GRUB_PATH)
+}
+
+fn unset_rollback_trigger_at(grub_path: &str) -> Result<()> {
+    unset_grub_var("greenboot_rollback_trigger", grub_path)
 }
 
 /// gets greenboot_rollback_trigger value, returns true if set to 1
-pub fn get_rollback_trigger(grub_path: &str) -> Result<bool> {
+pub fn get_rollback_trigger() -> Result<bool> {
+    get_rollback_trigger_at(GRUB_PATH)
+}
+
+fn get_rollback_trigger_at(grub_path: &str) -> Result<bool> {
     let grub_vars = Command::new("grub2-editenv")
         .arg(grub_path)
         .arg("list")
@@ -94,43 +122,51 @@ pub fn get_rollback_trigger(grub_path: &str) -> Result<bool> {
     Ok(false) // Not set means false
 }
 
-fn unset_grub_var(key: &str, grub_path: &str, mount_info_path: &str) -> Result<()> {
-    remount_boot_rw(Path::new(mount_info_path)).context("Failed to remount /boot as rw")?;
-    Command::new("grub2-editenv")
+fn unset_grub_var(key: &str, grub_path: &str) -> Result<()> {
+    // Execute GRUB command and capture result
+    let grub_result = Command::new("grub2-editenv")
         .arg(grub_path)
         .arg("unset")
         .arg(key)
         .status()
         .context("Unable to clear boot_counter")?;
+
+    if !grub_result.success() {
+        bail!("Failed to unset grubenv key: {key}");
+    }
+
     log::info!("Clear grubenv: {key}");
-    remount_boot_ro(Path::new(mount_info_path)).context("Failed to remount /boot as read-only")
+    Ok(())
 }
 
-fn set_grub_var(key: &str, val: u16, grub_path: &str, mount_info_path: &str) -> Result<()> {
-    remount_boot_rw(Path::new(mount_info_path)).context("Failed to remount /boot as rw")?;
-    Command::new("grub2-editenv")
+fn set_grub_var(key: &str, val: u16, grub_path: &str) -> Result<()> {
+    // Execute GRUB command and capture result
+    let grub_result = Command::new("grub2-editenv")
         .arg(grub_path)
         .arg("set")
         .arg(format!("{key}={val}"))
         .status()
         .context("Unable to set grubenv")?;
+
+    if !grub_result.success() {
+        bail!("Failed to set grubenv key: {key}");
+    }
+
     log::info!("Set grubenv: {key}={val}");
-    remount_boot_ro(Path::new(mount_info_path)).context("Failed to remount /boot as read-only")
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        get_boot_counter, get_rollback_trigger, set_boot_counter, set_rollback_trigger,
-        unset_boot_counter, unset_rollback_trigger,
+        get_boot_counter_at, get_rollback_trigger_at, set_boot_counter_at, set_rollback_trigger_at,
+        unset_boot_counter_at, unset_rollback_trigger_at,
     };
     use anyhow::Context;
     use std::fs;
     use std::process::Command;
     use tempfile::TempDir;
     use tempfile::tempdir;
-
-    static MOUNT_INFO_PATH: &str = "testing_assets/mounts";
 
     fn setup_test_paths() -> (TempDir, String) {
         let temp_dir = tempdir().unwrap();
@@ -142,8 +178,8 @@ mod tests {
     #[test]
     fn test_boot_counter_set() {
         let (_temp_dir, grubenv) = setup_test_paths();
-        set_boot_counter(10, &grubenv, MOUNT_INFO_PATH).unwrap();
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(10));
+        set_boot_counter_at(10, &grubenv).unwrap();
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(10));
     }
 
     #[test]
@@ -155,8 +191,8 @@ mod tests {
             .arg("boot_counter=99")
             .status()
             .context("Cannot create grub variable boot_counter");
-        set_boot_counter(20, &grubenv, MOUNT_INFO_PATH).ok();
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(99));
+        set_boot_counter_at(20, &grubenv).ok();
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(99));
     }
 
     #[test]
@@ -168,8 +204,8 @@ mod tests {
             .arg("boot_counter=foo")
             .status()
             .context("Cannot create grub variable boot_counter");
-        set_boot_counter(13, &grubenv, MOUNT_INFO_PATH).unwrap();
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(13));
+        set_boot_counter_at(13, &grubenv).unwrap();
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(13));
     }
 
     #[test]
@@ -181,8 +217,8 @@ mod tests {
             .arg("boot_counter=199")
             .status()
             .context("Cannot create grub variable boot_counter");
-        unset_boot_counter(&grubenv, MOUNT_INFO_PATH).unwrap();
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), None);
+        unset_boot_counter_at(&grubenv).unwrap();
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), None);
     }
 
     #[test]
@@ -194,7 +230,7 @@ mod tests {
             .arg("boot_counter=99")
             .status()
             .context("Cannot create grub variable boot_counter");
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(99));
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(99));
     }
 
     #[test]
@@ -202,15 +238,15 @@ mod tests {
         let (_temp_dir, grubenv) = setup_test_paths();
 
         // Test when rollback trigger is not set
-        assert!(!get_rollback_trigger(&grubenv).unwrap());
+        assert!(!get_rollback_trigger_at(&grubenv).unwrap());
 
         // Test setting rollback trigger
-        set_rollback_trigger(&grubenv, MOUNT_INFO_PATH).unwrap();
-        assert!(get_rollback_trigger(&grubenv).unwrap());
+        set_rollback_trigger_at(&grubenv).unwrap();
+        assert!(get_rollback_trigger_at(&grubenv).unwrap());
 
         // Test unsetting rollback trigger
-        unset_rollback_trigger(&grubenv, MOUNT_INFO_PATH).unwrap();
-        assert!(!get_rollback_trigger(&grubenv).unwrap());
+        unset_rollback_trigger_at(&grubenv).unwrap();
+        assert!(!get_rollback_trigger_at(&grubenv).unwrap());
     }
 
     #[test]
@@ -218,18 +254,18 @@ mod tests {
         let (_temp_dir, grubenv) = setup_test_paths();
 
         // Set boot counter
-        set_boot_counter(3, &grubenv, MOUNT_INFO_PATH).unwrap();
+        set_boot_counter_at(3, &grubenv).unwrap();
 
         // Set rollback trigger
-        set_rollback_trigger(&grubenv, MOUNT_INFO_PATH).unwrap();
+        set_rollback_trigger_at(&grubenv).unwrap();
 
         // Both should coexist
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(3));
-        assert!(get_rollback_trigger(&grubenv).unwrap());
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(3));
+        assert!(get_rollback_trigger_at(&grubenv).unwrap());
 
         // Unset rollback trigger, boot_counter should remain
-        unset_rollback_trigger(&grubenv, MOUNT_INFO_PATH).unwrap();
-        assert_eq!(get_boot_counter(&grubenv).unwrap(), Some(3));
-        assert!(!get_rollback_trigger(&grubenv).unwrap());
+        unset_rollback_trigger_at(&grubenv).unwrap();
+        assert_eq!(get_boot_counter_at(&grubenv).unwrap(), Some(3));
+        assert!(!get_rollback_trigger_at(&grubenv).unwrap());
     }
 }

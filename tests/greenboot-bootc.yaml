@@ -2,9 +2,9 @@
 - hosts: greenboot_guest
   become: no
   vars:
+    boot_mount_status: ""
     total_counter: "0"
     failed_counter: "0"
-
 
   tasks:
     # current target host's IP address
@@ -271,6 +271,25 @@
               - "'boot_success=1' in result_grubenv.stdout"
             fail_msg: "Not found boot_success=1"
             success_msg: "Found boot_success=1"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
+    - name: check /boot mount status after rollback
+      shell: findmnt -r -o OPTIONS -n /boot | awk -F "," '{print $1}'
+      register: result_boot_mount_after_rollback
+
+    - name: /boot status should be preserved
+      block:
+        - assert:
+            that:
+              - boot_mount_status == result_boot_mount_after_rollback.stdout
+            fail_msg: "/boot status is not preserved"
+            success_msg: "/boot status is preserved"
       always:
         - set_fact:
             total_counter: "{{ total_counter | int + 1 }}"

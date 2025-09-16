@@ -330,6 +330,8 @@ podman push quay.io/${QUAY_USERNAME}/greenboot-bootc:${TEST_UUID}
 ## Bootc upgrade and check if greenboot can rollback
 ##
 ###########################################################
+greenprint "Get /boot mount status"
+BOOT_MOUNT_STATUS=$(ssh "${SSH_OPTIONS[@]}" -i "${SSH_KEY}" ${EDGE_USER}@${GUEST_ADDRESS} "findmnt -r -o OPTIONS -n /boot | awk -F ',' '{print \$1}'")
 greenprint "Bootc upgrade and reboot"
 sudo ssh "${SSH_OPTIONS[@]}" -i "${SSH_KEY}" ${EDGE_USER}@${GUEST_ADDRESS} "echo ${EDGE_USER_PASSWORD} |sudo -S bootc upgrade"
 sudo ssh "${SSH_OPTIONS[@]}" -i "${SSH_KEY}" ${EDGE_USER}@${GUEST_ADDRESS} "echo ${EDGE_USER_PASSWORD} |nohup sudo -S systemctl reboot &>/dev/null & exit"
@@ -365,7 +367,7 @@ ansible_become_pass=${EDGE_USER_PASSWORD}
 EOF
 
 # Test greenboot functionality
-ansible-playbook -v -i /${TEMPDIR}/inventory greenboot-bootc.yaml || RESULTS=0
+ansible-playbook -v -i /${TEMPDIR}/inventory -e boot_mount_status="${BOOT_MOUNT_STATUS}" greenboot-bootc.yaml || RESULTS=0
 
 # Test result checking
 check_result

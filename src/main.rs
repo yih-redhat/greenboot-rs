@@ -9,7 +9,6 @@ use greenboot::{
     unset_boot_counter, unset_rollback_trigger,
 };
 use greenboot::{is_boot_rw, remount_boot_ro, remount_boot_rw};
-use serde::Deserialize;
 use std::process::Command;
 
 /// greenboot config path
@@ -25,7 +24,7 @@ struct Cli {
     #[clap(subcommand)]
     command: Commands,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 /// config params for greenboot
 struct GreenbootConfig {
     max_reboot: u16,

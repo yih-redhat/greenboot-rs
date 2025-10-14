@@ -2,35 +2,54 @@
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
-use std::path::Path;
 use std::process::Command;
 use std::str;
 
 use crate::grub::get_boot_counter;
 
 /// Detects if the system is managed by bootc or is a rpm-ostree system
+/// Inspect bootc status JSON and decide based on `status.booted.incompatible`.
 fn detect_os_deployment() -> Option<&'static str> {
-    // 1. Check if this is a bootc-managed host.
-    if let Ok(output) = Command::new("bootc")
+    let output = match Command::new("bootc")
         .args(["status", "--booted", "--json"])
         .output()
-        && output.status.success()
-        && let Ok(json) = serde_json::from_slice::<Value>(&output.stdout)
-        && json.get("kind").and_then(|v| v.as_str()) == Some("BootcHost")
     {
-        log::info!("System detected as bootc-managed host.");
-        return Some("bootc");
+        Ok(output) => output,
+        Err(_) => return None,
+    };
+
+    if !output.status.success() {
+        log::error!("'bootc status --booted --json' exited with non-zero status");
+        return None;
     }
 
-    // 2. If not bootc, check if it's an ostree-based OS by looking for /run/ostree-booted.
-    if Path::new("/run/ostree-booted").exists() {
-        log::info!("System detected as ostree-based (via /run/ostree-booted).");
-        return Some("rpm-ostree");
-    }
+    let json: Value = match serde_json::from_slice::<Value>(&output.stdout) {
+        Ok(json) => json,
+        Err(_) => {
+            log::error!("Failed to parse JSON from 'bootc status --booted --json'");
+            return None;
+        }
+    };
 
-    // 3. If neither check passes, the deployment type is unsupported.
-    log::warn!("System is neither bootc nor a known ostree variant.");
-    None
+    match json
+        .get("status")
+        .and_then(|s| s.get("booted"))
+        .and_then(|b| b.get("incompatible"))
+        .and_then(|i| i.as_bool())
+    {
+        Some(true) => {
+            log::info!("System detected as rpm-ostree (incompatible=true)");
+            Some("rpm-ostree")
+        }
+        Some(false) => {
+            log::info!("System detected as bootc (incompatible=false)");
+            Some("bootc")
+        }
+        None => {
+            log::error!("bootc status JSON missing boolean field status.booted.incompatible");
+            None
+        }
+    }
 }
 
 /// reboots the system if boot_counter is greater than 0 or can be forced too

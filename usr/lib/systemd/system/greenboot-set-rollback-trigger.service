@@ -3,6 +3,8 @@ Description=Greenboot Rollback trigger
 After=systemd-update-done.service
 Requisite=systemd-update-done.service
 Before=greenboot-healthcheck.service
+ConditionNeedsUpdate=|/etc
+ConditionNeedsUpdate=|/var
 
 [Service]
 Type=oneshot

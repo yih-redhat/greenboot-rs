@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use config::{Config, File, FileFormat};
+use greenboot::detect_os_deployment;
 use greenboot::{
     get_boot_counter, get_rollback_trigger, handle_motd, handle_reboot, handle_rollback,
     run_diagnostics, run_green, run_red, set_boot_counter, set_boot_status, set_rollback_trigger,
@@ -174,9 +175,16 @@ fn check_previous_rollback() -> Result<bool> {
 /// Generate MOTD message using pre-checked rollback status
 fn generate_motd_message(base_msg: &str, previous_rollback: bool) -> Result<String> {
     let prefix = if previous_rollback {
-        "FALLBACK BOOT DETECTED! Default bootc deployment has been rolled back.\n"
+        match detect_os_deployment() {
+            Some(manager) => {
+                format!(
+                    "FALLBACK BOOT DETECTED! Default {manager} deployment has been rolled back.\n"
+                )
+            }
+            None => String::from(""),
+        }
     } else {
-        ""
+        String::from("")
     };
     Ok(format!("{prefix}{base_msg}"))
 }
@@ -191,9 +199,14 @@ fn health_check() -> Result<()> {
     let previous_rollback = match check_previous_rollback() {
         Ok(status) => {
             if status {
-                log::info!(
-                    "FALLBACK BOOT DETECTED! Default bootc deployment has been rolled back."
-                );
+                match detect_os_deployment() {
+                    Some(manager) => log::info!(
+                        "FALLBACK BOOT DETECTED! Default {manager} deployment has been rolled back."
+                    ),
+                    None => log::info!(
+                        "FALLBACK BOOT DETECTED! Cannot rollback as its available only on rpm-ostree or bootc system."
+                    ),
+                }
             }
             status
         }

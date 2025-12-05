@@ -4,6 +4,8 @@
 # Tests are executed in external CI instead.
 %bcond check 0
 
+%bcond bundled_rust_deps %{defined rhel}
+
 Name:		greenboot-rs
 Version:	0.16.1
 Release:	0%{?dist}
@@ -16,7 +18,7 @@ Source1:	%{name}-%{version}-vendor-patched.tar.xz
 
 ExcludeArch:	%{ix86}
 
-%if 0%{?eln} || 0%{?centos} || 0%{?rhel}
+%if %{with bundled_rust_deps}
 BuildRequires:	rust-toolset
 %else
 BuildRequires:	cargo-rpm-macros
@@ -56,7 +58,7 @@ Requires:	jq
 This package adds some default healthchecks for greenboot.
 
 %prep
-%if 0%{?eln} || 0%{?centos} || 0%{?rhel}
+%if %{with bundled_rust_deps}
 %autosetup -p1 -a1 -n %{name}-%{version}
 %cargo_prep -v vendor
 %else
@@ -71,7 +73,7 @@ This package adds some default healthchecks for greenboot.
 %{cargo_license_summary}
 %{cargo_license} > LICENSE.dependencies
 
-%if 0%{?centos}
+%if %{with bundled_rust_deps}
 %cargo_vendor_manifest
 %endif
 

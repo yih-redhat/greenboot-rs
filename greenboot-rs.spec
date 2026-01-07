@@ -37,7 +37,6 @@ Summary:	%{summary}
 %{?systemd_requires}
 Requires:	systemd >= 240
 Requires:	rpm-ostree
-Requires:	bootupd
 Requires:	pam >= 1.4.0
 Recommends:	openssh
 

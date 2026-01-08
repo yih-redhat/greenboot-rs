@@ -10,7 +10,7 @@ use greenboot::{
     unset_boot_counter, unset_rollback_trigger,
 };
 use greenboot::{is_boot_rw, remount_boot_ro, remount_boot_rw};
-use std::process::Command;
+use std::{process::Command, sync::OnceLock};
 
 /// greenboot config path
 static GREENBOOT_CONFIG_FILE: &str = "/etc/greenboot/greenboot.conf";
@@ -103,11 +103,41 @@ enum Commands {
     SetRollbackTrigger,
 }
 
+/// Determine if we're executing inside a containerized environment.
+fn running_in_container() -> bool {
+    static IS_CONTAINER: OnceLock<bool> = OnceLock::new();
+    *IS_CONTAINER.get_or_init(|| {
+        match Command::new("systemd-detect-virt")
+            .arg("--container")
+            .status()
+        {
+            Ok(status) => {
+                if status.success() {
+                    log::debug!("systemd-detect-virt detected container environment ({status})");
+                    true
+                } else {
+                    log::debug!("systemd-detect-virt reported non-container context ({status})");
+                    false
+                }
+            }
+            Err(err) => {
+                log::debug!("Unable to determine container state via systemd-detect-virt: {err}");
+                false
+            }
+        }
+    })
+}
+
 /// Execute a mutating GRUB operation while ensuring /boot is temporarily remounted RW if needed
 fn with_boot_rw<F>(f: F) -> Result<()>
 where
     F: FnOnce() -> Result<()>,
 {
+    if running_in_container() {
+        log::info!("Container environment detected; skipping /boot remounts");
+        return f();
+    }
+
     let was_rw =
         is_boot_rw().map_err(|e| anyhow::anyhow!("Failed to check boot mount state: {}", e))?;
 
@@ -195,6 +225,11 @@ fn health_check() -> Result<()> {
     let config = GreenbootConfig::get_config();
     log::debug!("{config:?}");
 
+    let container_mode = running_in_container();
+    if container_mode {
+        log::info!("Container environment detected; skipping reboot and rollback handling");
+    }
+
     // Check rollback status with graceful error handling
     let previous_rollback = match check_previous_rollback() {
         Ok(status) => {
@@ -237,12 +272,14 @@ fn health_check() -> Result<()> {
             )?)
             .unwrap_or_else(|e| log::error!("cannot set motd: {e}"));
 
-            with_boot_rw(|| set_boot_status(true))?;
+            if !container_mode {
+                with_boot_rw(|| set_boot_status(true))?;
 
-            // Unset rollback trigger on successful health check
-            if get_rollback_trigger().unwrap_or(false) {
-                with_boot_rw(unset_rollback_trigger)
-                    .unwrap_or_else(|e| log::error!("Failed to unset rollback trigger: {e}"));
+                // Unset rollback trigger on successful health check
+                if get_rollback_trigger().unwrap_or(false) {
+                    with_boot_rw(unset_rollback_trigger)
+                        .unwrap_or_else(|e| log::error!("Failed to unset rollback trigger: {e}"));
+                }
             }
 
             Ok(())
@@ -261,55 +298,59 @@ fn health_check() -> Result<()> {
                 errors.iter().for_each(|e| log::error!("{e}"));
             }
 
-            with_boot_rw(|| set_boot_status(false))
-                .unwrap_or_else(|e| log::error!("cannot set boot_status: {e}"));
+            if !container_mode {
+                with_boot_rw(|| set_boot_status(false))
+                    .unwrap_or_else(|e| log::error!("cannot set boot_status: {e}"));
 
-            // Check if boot_counter is 0 (exhausted retries) or if no counter is set
-            match get_boot_counter()? {
-                Some(counter) if counter > 0 => {
-                    // Still have retries left, just reboot
-                    log::info!("Boot counter is {counter}, rebooting to try again");
-                    handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
-                }
-                Some(_) => {
-                    // Boot counter reached 0 (or negative) - check rollback trigger
-                    if get_rollback_trigger().unwrap_or(false) {
-                        log::info!(
-                            "Boot counter exhausted and rollback trigger is set - initiating rollback"
-                        );
-                        match handle_rollback() {
-                            Ok(()) => {
-                                log::info!("Rollback successful");
-                                with_boot_rw(|| {
-                                    unset_boot_counter()?;
-                                    unset_rollback_trigger()?;
-                                    Ok(())
-                                })
-                                .unwrap_or_else(|e| log::error!("Failed to clear grub vars: {e}"));
-                                handle_reboot(true)
-                                    .unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
-                            }
-                            Err(rollback_err) => {
-                                log::error!("Rollback failed: {rollback_err}");
-                                bail!("Manual intervention required - rollback failed");
-                            }
-                        }
-                    } else {
-                        log::warn!(
-                            "Boot counter exhausted but no rollback trigger set - manual intervention required"
-                        );
-                        bail!("Manual intervention required - no rollback trigger");
+                // Check if boot_counter is 0 (exhausted retries) or if no counter is set
+                match get_boot_counter()? {
+                    Some(counter) if counter > 0 => {
+                        // Still have retries left, just reboot
+                        log::info!("Boot counter is {counter}, rebooting to try again");
+                        handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
                     }
-                }
-                None => {
-                    // No boot counter set - this is the first failure, set it and reboot
-                    log::info!(
-                        "First health check failure, setting boot counter to {}",
-                        config.max_reboot
-                    );
-                    with_boot_rw(|| set_boot_counter(config.max_reboot))
-                        .unwrap_or_else(|e| log::error!("cannot set boot_counter: {e}"));
-                    handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                    Some(_) => {
+                        // Boot counter reached 0 (or negative) - check rollback trigger
+                        if get_rollback_trigger().unwrap_or(false) {
+                            log::info!(
+                                "Boot counter exhausted and rollback trigger is set - initiating rollback"
+                            );
+                            match handle_rollback() {
+                                Ok(()) => {
+                                    log::info!("Rollback successful");
+                                    with_boot_rw(|| {
+                                        unset_boot_counter()?;
+                                        unset_rollback_trigger()?;
+                                        Ok(())
+                                    })
+                                    .unwrap_or_else(|e| {
+                                        log::error!("Failed to clear grub vars: {e}")
+                                    });
+                                    handle_reboot(true)
+                                        .unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                                }
+                                Err(rollback_err) => {
+                                    log::error!("Rollback failed: {rollback_err}");
+                                    bail!("Manual intervention required - rollback failed");
+                                }
+                            }
+                        } else {
+                            log::warn!(
+                                "Boot counter exhausted but no rollback trigger set - manual intervention required"
+                            );
+                            bail!("Manual intervention required - no rollback trigger");
+                        }
+                    }
+                    None => {
+                        // No boot counter set - this is the first failure, set it and reboot
+                        log::info!(
+                            "First health check failure, setting boot counter to {}",
+                            config.max_reboot
+                        );
+                        with_boot_rw(|| set_boot_counter(config.max_reboot))
+                            .unwrap_or_else(|e| log::error!("cannot set boot_counter: {e}"));
+                        handle_reboot(false).unwrap_or_else(|e| log::error!("cannot reboot: {e}"));
+                    }
                 }
             }
 
@@ -360,6 +401,10 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::HealthCheck => health_check(),
         Commands::SetRollbackTrigger => {
+            if running_in_container() {
+                log::info!("Container environment detected; skipping rollback trigger updates");
+                return Ok(());
+            }
             log::info!("Setting rollback trigger for next boot...");
             with_boot_rw(set_rollback_trigger)?;
             log::info!("Rollback trigger set successfully.");

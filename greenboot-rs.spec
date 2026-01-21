@@ -7,7 +7,7 @@
 %bcond bundled_rust_deps %{defined rhel}
 
 Name:		greenboot-rs
-Version:	0.16.1
+Version:	0.16.2
 Release:	0%{?dist}
 Summary:	Generic Health Check Framework for systemd
 # Aggregated license of statically linked dependencies as per %%cargo_license_summary
@@ -146,6 +146,12 @@ install -DpZm 0644 usr/lib/systemd/system/greenboot-healthcheck.service.d/10-net
 %{_unitdir}/greenboot-healthcheck.service.d/10-network-online.conf
 
 %changelog
+* Wed Jan 21 2026 Sayan Paul <saypaul@redhat.com> - 0.16.2
+- restrict manual restart of healthcheck service
+- fixed error while running healtcheck inside container
+- removed bootupd dependency
+- fixed CI tests
+
 * Wed Dec 03 2025 Sayan Paul <saypaul@redhat.com> - 0.16.1
 - Ensure rollback trigger runs before systemd-update-done and only on updates
 - Log the correct system type when reporting rollback decisions

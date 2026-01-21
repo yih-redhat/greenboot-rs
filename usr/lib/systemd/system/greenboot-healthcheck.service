@@ -4,6 +4,7 @@ Before=boot-complete.target
 OnFailureJobMode=fail
 RequiresMountsFor=/boot
 RequiresMountsFor=/etc
+RefuseManualStart=yes
 
 [Service]
 Type=oneshot

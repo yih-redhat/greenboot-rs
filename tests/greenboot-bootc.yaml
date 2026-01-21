@@ -385,6 +385,30 @@
           set_fact:
             failed_counter: "{{ failed_counter | int + 1 }}"
 
+    - name: Test refusal of manual greenboot-healthcheck restart
+      block:
+        - name: Attempt manual restart of greenboot-healthcheck service
+          shell: |
+            echo "exit 1" > /etc/greenboot/check/required.d/10_failme.sh
+            chmod 755 /etc/greenboot/check/required.d/10_failme.sh
+            systemctl restart greenboot-healthcheck
+          register: result_restart
+          become: yes
+          ignore_errors: yes
+
+        - assert:
+            that:
+              - "'Failed to restart greenboot-healthcheck.service: Operation refused' in result_restart.stderr" 
+            fail_msg: "Expected error message for manual restart refusal was not found"
+            success_msg: "Service correctly refuses manual restart (expected behavior)"
+      always:
+        - set_fact:
+            total_counter: "{{ total_counter | int + 1 }}"
+      rescue:
+        - name: failed count + 1
+          set_fact:
+            failed_counter: "{{ failed_counter | int + 1 }}"
+
     - assert:
         that:
           - failed_counter == "0"

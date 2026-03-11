@@ -2,14 +2,21 @@
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
+use std::path::Path;
 use std::process::Command;
 use std::str;
 
 use crate::grub::get_boot_counter;
 
-/// Detects if the system is managed by bootc or is a rpm-ostree system
-/// Inspect bootc status JSON and decide based on `status.booted.incompatible`.
+/// Detects if the system is managed by bootc or is a rpm-ostree system.
+/// First checks for `/run/ostree-booted`, then inspects `status.booted.image`
+/// from `bootc status --booted --json` to distinguish between the two.
 pub fn detect_os_deployment() -> Option<&'static str> {
+    if !Path::new("/run/ostree-booted").exists() {
+        log::info!("'/run/ostree-booted' not found, not an ostree-based system");
+        return None;
+    }
+
     let output = match Command::new("bootc")
         .args(["status", "--booted", "--json"])
         .output()
@@ -34,19 +41,18 @@ pub fn detect_os_deployment() -> Option<&'static str> {
     match json
         .get("status")
         .and_then(|s| s.get("booted"))
-        .and_then(|b| b.get("incompatible"))
-        .and_then(|i| i.as_bool())
+        .and_then(|b| b.get("image"))
     {
-        Some(true) => {
-            log::info!("System detected as rpm-ostree (incompatible=true)");
+        Some(image) if image.is_null() => {
+            log::info!("System detected as rpm-ostree (status.booted.image is null)");
             Some("rpm-ostree")
         }
-        Some(false) => {
-            log::info!("System detected as bootc (incompatible=false)");
+        Some(_) => {
+            log::info!("System detected as bootc (status.booted.image is present)");
             Some("bootc")
         }
         None => {
-            log::error!("bootc status JSON missing boolean field status.booted.incompatible");
+            log::error!("bootc status JSON missing field status.booted.image");
             None
         }
     }

@@ -38,23 +38,17 @@ pub fn detect_os_deployment() -> Option<&'static str> {
         }
     };
 
-    match json
+    if let Some(image_type) = json
         .get("status")
         .and_then(|s| s.get("booted"))
         .and_then(|b| b.get("image"))
+        .filter(|v| !v.is_null())
     {
-        Some(image) if image.is_null() => {
-            log::info!("System detected as rpm-ostree (status.booted.image is null)");
-            Some("rpm-ostree")
-        }
-        Some(_) => {
-            log::info!("System detected as bootc (status.booted.image is present)");
-            Some("bootc")
-        }
-        None => {
-            log::error!("bootc status JSON missing field status.booted.image");
-            None
-        }
+        log::info!("System detected as bootc (status.booted.image: {image_type})");
+        Some("bootc")
+    } else {
+        log::info!("System detected as rpm-ostree (status.booted.image is null or absent)");
+        Some("rpm-ostree")
     }
 }
 

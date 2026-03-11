@@ -7,7 +7,7 @@
 %bcond bundled_rust_deps %{defined rhel}
 
 Name:		greenboot-rs
-Version:	0.16.2
+Version:	0.16.3
 Release:	0%{?dist}
 Summary:	Generic Health Check Framework for systemd
 # Aggregated license of statically linked dependencies as per %%cargo_license_summary

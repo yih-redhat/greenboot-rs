@@ -5,10 +5,22 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+permissions:
+  pull-requests: write
+  issues: write
+
 jobs:
   check-pull-request:
     runs-on: ubuntu-latest
     steps:
+      - name: Get information for pull request
+        uses: octokit/request-action@v2.x
+        id: pr-api
+        with:
+          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Query author repository permissions
         uses: octokit/request-action@v2.x
         id: user_permission
@@ -24,13 +36,13 @@ jobs:
           echo "User '${{ github.event.sender.login }}' has permission '${{ fromJson(steps.user_permission.outputs.data).permission }}' allowed values: 'admin', 'write'"
           echo "allowed_user=true" >> $GITHUB_OUTPUT
 
-      - name: Get information for pull request
-        uses: octokit/request-action@v2.x
-        id: pr-api
+      - name: Add comment for unauthorized user
+        if: steps.check_user_perm.outputs.allowed_user != 'true'
+        uses: peter-evans/create-or-update-comment@v4
         with:
-          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.number }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.number }}
+          body: |
+            @${{ github.event.sender.login }}, you are not authorized to trigger CI test, please contact saypaul@redhat.com
 
     outputs:
       allowed_user: ${{ steps.check_user_perm.outputs.allowed_user }}
